@@ -47,6 +47,9 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: Verify autoloading (PSR-4)
+        run: composer dump-autoload --strict-psr --no-interaction
+
       - name: Verify no environment files are tracked
         run: |
           tracked=$(git ls-files | grep -E '^\.env' | grep -v '^\.env\.example$' || true)

@@ -90,9 +90,8 @@ services:
         ports:
             - "${APP_PORT:-8080}:80"
         volumes:
-            - .:/var/www/html:ro
+            - ./public:/var/www/html/public:ro
             - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-            - /var/www/html
         healthcheck:
             test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/up || exit 1"]
             interval: 10s

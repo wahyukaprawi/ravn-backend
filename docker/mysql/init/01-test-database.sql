@@ -1,0 +1,3 @@
+CREATE DATABASE IF NOT EXISTS ravn_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+GRANT ALL PRIVILEGES ON ravn_test.* TO 'ravn'@'%';
+FLUSH PRIVILEGES;

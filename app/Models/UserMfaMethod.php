@@ -16,6 +16,7 @@ class UserMfaMethod extends Model
         'secret',
         'confirmed_at',
         'last_used_at',
+        'last_used_timestep',
     ];
 
     protected function casts(): array
@@ -24,6 +25,7 @@ class UserMfaMethod extends Model
             'secret' => 'encrypted',
             'confirmed_at' => 'datetime',
             'last_used_at' => 'datetime',
+            'last_used_timestep' => 'integer',
         ];
     }
 

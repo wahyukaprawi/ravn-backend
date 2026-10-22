@@ -51,6 +51,7 @@ services:
             - "${DB_PORT_PUBLISHED:-3307}:3306"
         volumes:
             - mysql_data:/var/lib/mysql
+            - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
         healthcheck:
             test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
             interval: 10s
@@ -99,6 +100,26 @@ services:
             retries: 6
             start_period: 30s
         restart: unless-stopped
+        networks: [ravn]
+
+    test:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        profiles: [test]
+        depends_on:
+            mysql:
+                condition: service_healthy
+        environment:
+            <<: *app-env
+            APP_ENV: testing
+            DB_DATABASE: ${DB_DATABASE_TESTING:-ravn_test}
+            BCRYPT_ROUNDS: 4
+        volumes:
+            - .:/var/www/html
+            - vendor:/var/www/html/vendor
+            - storage:/var/www/html/storage
+        command: ["php", "artisan", "test"]
         networks: [ravn]
 
     queue:

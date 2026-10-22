@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Leave;
 
+use App\Models\IdempotencyKey;
 use App\Models\LeaveRequest;
 use App\Models\WorkflowStep;
 
@@ -93,6 +94,37 @@ class LeaveIdempotencyTest extends LeaveTestCase
             'start_date' => '2027-03-01',
             'end_date' => '2027-03-02',
         ], ['Idempotency-Key' => 'submit-3'])->assertCreated();
+    }
+
+    public function test_lv_t12_a_key_with_an_in_flight_request_is_a_conflict(): void
+    {
+        [$employee, , $type] = $this->scenario(10);
+
+        $payload = [
+            'leave_type_id' => $type->getKey(),
+            'start_date' => '2027-03-01',
+            'end_date' => '2027-03-02',
+        ];
+
+        $this->loginAs($employee);
+
+        IdempotencyKey::query()->create([
+            'key' => hash('sha256', $employee->getKey().'|in-flight'),
+            'actor_id' => $employee->getKey(),
+            'method' => 'POST',
+            'path' => 'api/v1/leave/requests',
+            'request_hash' => hash('sha256', 'POST|api/v1/leave/requests|'.json_encode($payload)),
+            'response_status' => 0,
+            'response_body' => [],
+            'created_at' => now(),
+            'expires_at' => now()->addHours(24),
+        ]);
+
+        $this->postJson('/api/v1/leave/requests', $payload, ['Idempotency-Key' => 'in-flight'])
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'CONFLICT');
+
+        $this->assertSame(0, LeaveRequest::query()->count());
     }
 
     public function test_lv_t12_identical_decisions_execute_once(): void

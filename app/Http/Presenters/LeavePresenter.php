@@ -6,6 +6,7 @@ use App\Models\LeaveCancellationRequest;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Models\WorkflowStep;
+use Spatie\Permission\Models\Role;
 
 class LeavePresenter
 {
@@ -76,6 +77,23 @@ class LeavePresenter
         ];
     }
 
+    protected static function assigneeName(WorkflowStep $step): ?string
+    {
+        if ($step->assignee_type === 'user' && $step->assignee_id !== null) {
+            $user = User::query()->find($step->assignee_id);
+
+            return $user?->name;
+        }
+
+        if ($step->assignee_type === 'role' && $step->assignee_id !== null) {
+            $role = Role::query()->find($step->assignee_id);
+
+            return $role === null ? null : ucfirst(str_replace('_', ' ', $role->name));
+        }
+
+        return null;
+    }
+
     protected static function step(WorkflowStep $step): array
     {
         return [
@@ -84,6 +102,7 @@ class LeavePresenter
             'status' => $step->status,
             'assignee_type' => $step->assignee_type,
             'assignee_id' => $step->assignee_id,
+            'assignee_name' => self::assigneeName($step),
             'due_at' => $step->due_at?->toIso8601String(),
             'acted_at' => $step->acted_at?->toIso8601String(),
             'acted_by' => $step->acted_by,

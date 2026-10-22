@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\Idempotency;
 use App\Http\Middleware\RequireFreshMfa;
 use App\Http\Responses\ApiError;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role' => RoleMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'idempotency' => Idempotency::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

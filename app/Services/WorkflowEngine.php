@@ -7,8 +7,11 @@ use App\Models\WorkflowDefinition;
 use App\Models\WorkflowEvent;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowStep;
+use Carbon\CarbonInterface;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 
 class WorkflowEngine
 {
@@ -39,6 +42,10 @@ class WorkflowEngine
 
     public function act(WorkflowStep $step, string $action, User $actor, array $payload = []): WorkflowInstance
     {
+        if (! in_array($action, ['approve', 'reject'], true)) {
+            throw new \InvalidArgumentException('Unsupported workflow action.');
+        }
+
         return DB::transaction(function () use ($step, $action, $actor, $payload) {
             $instance = $step->instance()->lockForUpdate()->first();
 
@@ -46,8 +53,10 @@ class WorkflowEngine
                 throw new \RuntimeException('Cannot act on a terminal workflow instance.');
             }
 
-            if (! $step->isActionable()) {
-                throw new \RuntimeException('Step is not actionable.');
+            $step = WorkflowStep::query()->whereKey($step->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! $this->canAct($step, $actor)) {
+                throw new AuthorizationException('You are not the authorized approver for this stage.');
             }
 
             $step->forceFill([
@@ -71,7 +80,10 @@ class WorkflowEngine
     public function cancel(WorkflowInstance $instance, User $actor, string $reason = ''): WorkflowInstance
     {
         return DB::transaction(function () use ($instance, $actor, $reason) {
-            $instance = $instance->lockForUpdate();
+            $instance = WorkflowInstance::query()
+                ->whereKey($instance->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
             if ($instance->isTerminal()) {
                 return $instance;
@@ -89,6 +101,72 @@ class WorkflowEngine
 
             return $instance->fresh(['steps', 'events']);
         });
+    }
+
+    public function currentStep(WorkflowInstance $instance): ?WorkflowStep
+    {
+        return $instance->steps()
+            ->whereIn('status', [WorkflowStep::STATUS_PENDING, WorkflowStep::STATUS_ACTIVE])
+            ->orderBy('position')
+            ->first();
+    }
+
+    public function canAct(WorkflowStep $step, User $actor): bool
+    {
+        if (! $step->isActionable()) {
+            return false;
+        }
+
+        foreach ((array) ($step->required_permissions ?? []) as $permission) {
+            if (! $actor->hasPermissionTo($permission)) {
+                return false;
+            }
+        }
+
+        if ($step->assignee_type === 'user') {
+            return (int) $step->assignee_id === (int) $actor->getKey();
+        }
+
+        if ($step->assignee_type === 'role') {
+            $role = Role::query()->whereKey($step->assignee_id)->first();
+
+            return $role !== null && $actor->hasRole($role->name);
+        }
+
+        return true;
+    }
+
+    public function assign(WorkflowStep $step, string $assigneeType, ?int $assigneeId): WorkflowStep
+    {
+        $step->forceFill([
+            'assignee_type' => $assigneeType,
+            'assignee_id' => $assigneeId,
+        ])->save();
+
+        return $step->fresh();
+    }
+
+    public function setDueAt(WorkflowStep $step, CarbonInterface $dueAt): WorkflowStep
+    {
+        $step->forceFill(['due_at' => $dueAt])->save();
+
+        return $step->fresh();
+    }
+
+    public function recordReminder(WorkflowStep $step, string $stage): void
+    {
+        $this->recordEvent($step->instance, "sla.{$stage}_reminder", $step, [
+            'step_key' => $step->step_key,
+            'stage' => $stage,
+        ]);
+    }
+
+    public function reminderAlreadySent(WorkflowStep $step, string $stage): bool
+    {
+        return WorkflowEvent::query()
+            ->where('workflow_step_id', $step->getKey())
+            ->where('event_type', "sla.{$stage}_reminder")
+            ->exists();
     }
 
     protected function buildSteps(WorkflowInstance $instance): void

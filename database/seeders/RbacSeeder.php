@@ -51,6 +51,19 @@ class RbacSeeder extends Seeder
         'users.assign_roles',
         'roles.view',
         'roles.manage',
+        'leave_requests.view_any',
+        'leave_requests.view_scope',
+        'leave_policies.view',
+        'leave_policies.manage',
+        'leave_calendars.manage',
+        'leave_balances.adjust',
+        'workflow.view_own',
+        'workflow.view_scope',
+        'workflow.approve',
+        'workflow.reject',
+        'workflow.reassign',
+        'workflow.escalations.view',
+        'workflow.manage',
     ];
 
     public const SLICE_01_PERMISSIONS = [
@@ -110,6 +123,17 @@ class RbacSeeder extends Seeder
             'positions.view_any',
             'positions.view',
             'audit.view',
+            'leave_requests.view_any',
+            'leave_policies.view',
+            'leave_policies.manage',
+            'leave_calendars.manage',
+            'leave_balances.adjust',
+            'workflow.view_own',
+            'workflow.view_scope',
+            'workflow.approve',
+            'workflow.reject',
+            'workflow.reassign',
+            'workflow.escalations.view',
         ]);
 
         $manager = Role::findByName('manager', 'web');
@@ -120,10 +144,19 @@ class RbacSeeder extends Seeder
             'departments.view',
             'positions.view_any',
             'positions.view',
+            'leave_requests.view_scope',
+            'leave_policies.view',
+            'workflow.view_own',
+            'workflow.view_scope',
+            'workflow.approve',
+            'workflow.reject',
         ]);
 
         $employee = Role::findByName('employee', 'web');
-        $employee->syncPermissions([]);
+        $employee->syncPermissions([
+            'leave_policies.view',
+            'workflow.view_own',
+        ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 

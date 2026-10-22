@@ -33,6 +33,7 @@ class User extends Authenticatable
         'deactivated_by',
         'last_login_at',
         'created_by',
+        'manager_id',
     ];
 
     protected function casts(): array
@@ -70,5 +71,15 @@ class User extends Authenticatable
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(self::class, 'created_by');
+    }
+
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'manager_id');
+    }
+
+    public function directReports(): HasMany
+    {
+        return $this->hasMany(self::class, 'manager_id');
     }
 }

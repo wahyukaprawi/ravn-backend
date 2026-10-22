@@ -5,12 +5,14 @@ namespace App\Http\Middleware;
 use App\Http\Responses\ApiError;
 use App\Models\IdempotencyKey;
 use Closure;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class Idempotency
 {
@@ -26,92 +28,86 @@ class Idempotency
             return $next($request);
         }
 
-        $key = $request->header(self::HEADER);
+        $rawKey = $request->header(self::HEADER);
 
-        if (! is_string($key) || $key === '') {
+        if (! is_string($rawKey) || $rawKey === '') {
             return $next($request);
         }
 
-        $key = Str::limit($key, 64, '');
+        $rawKey = Str::limit($rawKey, 64, '');
         $actorId = Auth::id();
+        $key = hash('sha256', ($actorId ?? 'guest').'|'.$rawKey);
         $hash = $this->hash($request);
         $requestId = $request->header('X-Request-Id');
 
-        $existing = DB::transaction(function () use ($key, $hash, $requestId) {
-            $record = IdempotencyKey::query()
-                ->where('key', $key)
-                ->lockForUpdate()
-                ->first();
+        try {
+            [$record, $created] = DB::transaction(function () use ($key, $actorId, $hash, $request) {
+                $record = IdempotencyKey::query()
+                    ->where('key', $key)
+                    ->lockForUpdate()
+                    ->first();
 
-            if ($record === null) {
-                return null;
-            }
+                if ($record !== null && $record->expires_at !== null && $record->expires_at->isPast()) {
+                    $record->delete();
 
-            if ($record->expires_at !== null && $record->expires_at->isPast()) {
-                $record->delete();
-
-                return null;
-            }
-
-            if ($record->request_hash !== $hash) {
-                return new class($requestId)
-                {
-                    public function __construct(private ?string $requestId) {}
-
-                    public function toResponse()
-                    {
-                        return ApiError::conflict('Idempotency-Key was used with a different request payload.')
-                            ->toResponse($this->requestId);
-                    }
-                };
-            }
-
-            return new class($record)
-            {
-                public function __construct(private IdempotencyKey $record) {}
-
-                public function toResponse(): JsonResponse
-                {
-                    $response = response()->json(
-                        $this->record->response_body,
-                        $this->record->response_status,
-                    );
-
-                    return $response->header(self::HEADER, $this->record->key);
+                    $record = null;
                 }
-            };
-        });
 
-        if (is_object($existing) && method_exists($existing, 'toResponse')) {
-            $resp = $existing->toResponse();
+                if ($record !== null) {
+                    return [$record, false];
+                }
 
-            if ($resp instanceof JsonResponse && ! $resp->headers->has(self::HEADER)) {
-                $resp->headers->set(self::HEADER, $key);
-            }
+                $record = IdempotencyKey::query()->create([
+                    'key' => $key,
+                    'actor_id' => $actorId,
+                    'method' => $request->method(),
+                    'path' => Str::limit($request->path(), 255, ''),
+                    'request_hash' => $hash,
+                    'response_status' => 0,
+                    'response_body' => [],
+                    'created_at' => now(),
+                    'expires_at' => now()->addHours($this->ttlHours),
+                ]);
 
-            return $resp;
+                return [$record, true];
+            });
+        } catch (UniqueConstraintViolationException) {
+            return ApiError::conflict('An identical request is still being processed.')->toResponse($requestId);
         }
 
-        $response = $next($request);
+        if (! $created) {
+            if ($record->request_hash !== $hash) {
+                return ApiError::idempotencyConflict()->toResponse($requestId);
+            }
+
+            if ($record->response_status === 0) {
+                return ApiError::conflict('An identical request is still being processed.')->toResponse($requestId);
+            }
+
+            $response = response()->json($record->response_body, $record->response_status);
+            $response->headers->set(self::HEADER, $rawKey);
+
+            return $response;
+        }
+
+        try {
+            $response = $next($request);
+        } catch (Throwable $exception) {
+            IdempotencyKey::query()->whereKey($record->getKey())->delete();
+
+            throw $exception;
+        }
 
         if ($response instanceof JsonResponse && $response->isSuccessful()) {
-            DB::transaction(function () use ($key, $actorId, $hash, $request, $response) {
-                IdempotencyKey::query()->updateOrCreate(
-                    ['key' => $key],
-                    [
-                        'actor_id' => $actorId,
-                        'method' => $request->method(),
-                        'path' => Str::limit($request->path(), 255, ''),
-                        'request_hash' => $hash,
-                        'response_status' => $response->getStatusCode(),
-                        'response_body' => $response->getData(true),
-                        'created_at' => now(),
-                        'expires_at' => now()->addHours($this->ttlHours),
-                    ],
-                );
-            });
+            IdempotencyKey::query()->whereKey($record->getKey())->update([
+                'response_status' => $response->getStatusCode(),
+                'response_body' => $response->getData(true),
+                'expires_at' => now()->addHours($this->ttlHours),
+            ]);
 
-            $response->headers->set(self::HEADER, $key);
+            $response->headers->set(self::HEADER, $rawKey);
+        } else {
+            IdempotencyKey::query()->whereKey($record->getKey())->delete();
         }
 
         return $response;

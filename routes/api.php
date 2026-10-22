@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\LeaveBalanceController as AdminLeaveBalanceController;
+use App\Http\Controllers\Api\V1\Admin\LeaveCalendarController;
+use App\Http\Controllers\Api\V1\Admin\LeavePolicyController;
+use App\Http\Controllers\Api\V1\Admin\LeaveTypeController as AdminLeaveTypeController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\UserController;
 use App\Http\Controllers\Api\V1\Auth\ActivationController;
@@ -7,6 +11,10 @@ use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\MfaController;
 use App\Http\Controllers\Api\V1\Auth\PasswordResetController;
+use App\Http\Controllers\Api\V1\Leave\LeaveApprovalController;
+use App\Http\Controllers\Api\V1\Leave\LeaveBalanceController;
+use App\Http\Controllers\Api\V1\Leave\LeaveRequestController;
+use App\Http\Controllers\Api\V1\Leave\LeaveTypeController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\HealthController;
@@ -53,6 +61,42 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('me/sessions/{id}', [SessionController::class, 'destroy'])->name('api.v1.me.sessions.destroy');
     });
 
+    Route::prefix('leave')->middleware('auth:sanctum')->group(function (): void {
+        Route::get('types', [LeaveTypeController::class, 'index'])
+            ->middleware('permission:leave_policies.view')
+            ->name('api.v1.leave.types.index');
+
+        Route::get('balances', [LeaveBalanceController::class, 'index'])
+            ->name('api.v1.leave.balances.index');
+
+        Route::get('requests', [LeaveRequestController::class, 'index'])
+            ->name('api.v1.leave.requests.index');
+        Route::post('requests', [LeaveRequestController::class, 'store'])
+            ->middleware('idempotency')
+            ->name('api.v1.leave.requests.store');
+        Route::get('requests/{leaveRequest}', [LeaveRequestController::class, 'show'])
+            ->name('api.v1.leave.requests.show');
+        Route::post('requests/{leaveRequest}/cancel', [LeaveRequestController::class, 'cancel'])
+            ->middleware('idempotency')
+            ->name('api.v1.leave.requests.cancel');
+        Route::post('requests/{leaveRequest}/assign-approver', [LeaveRequestController::class, 'assignApprover'])
+            ->middleware(['permission:workflow.reassign', 'fresh.mfa'])
+            ->name('api.v1.leave.requests.assign-approver');
+
+        Route::get('approvals', [LeaveApprovalController::class, 'index'])
+            ->middleware('permission:workflow.approve')
+            ->name('api.v1.leave.approvals.index');
+        Route::post('approvals/{leaveRequest}/decision', [LeaveApprovalController::class, 'decide'])
+            ->middleware(['permission:workflow.approve', 'idempotency'])
+            ->name('api.v1.leave.approvals.decide');
+        Route::get('cancellations', [LeaveApprovalController::class, 'cancellations'])
+            ->middleware('permission:workflow.approve')
+            ->name('api.v1.leave.cancellations.index');
+        Route::post('cancellations/{cancellation}/decision', [LeaveApprovalController::class, 'decideCancellation'])
+            ->middleware(['permission:workflow.approve', 'idempotency'])
+            ->name('api.v1.leave.cancellations.decide');
+    });
+
     Route::prefix('admin')->middleware('auth:sanctum')->group(function (): void {
         Route::get('users', [UserController::class, 'index'])
             ->middleware('permission:users.view')
@@ -90,5 +134,39 @@ Route::prefix('v1')->group(function (): void {
         Route::get('permissions', [RoleController::class, 'permissions'])
             ->middleware('permission:roles.view')
             ->name('api.v1.admin.permissions.index');
+
+        Route::post('leave/types', [AdminLeaveTypeController::class, 'store'])
+            ->middleware('permission:leave_policies.manage')
+            ->name('api.v1.admin.leave.types.store');
+        Route::patch('leave/types/{leaveType}', [AdminLeaveTypeController::class, 'update'])
+            ->middleware('permission:leave_policies.manage')
+            ->name('api.v1.admin.leave.types.update');
+
+        Route::post('leave/policies', [LeavePolicyController::class, 'store'])
+            ->middleware('permission:leave_policies.manage')
+            ->name('api.v1.admin.leave.policies.store');
+        Route::patch('leave/policies/{leavePolicy}', [LeavePolicyController::class, 'update'])
+            ->middleware('permission:leave_policies.manage')
+            ->name('api.v1.admin.leave.policies.update');
+
+        Route::get('leave/calendars', [LeaveCalendarController::class, 'index'])
+            ->middleware('permission:leave_policies.view')
+            ->name('api.v1.admin.leave.calendars.index');
+        Route::post('leave/calendars', [LeaveCalendarController::class, 'store'])
+            ->middleware('permission:leave_calendars.manage')
+            ->name('api.v1.admin.leave.calendars.store');
+        Route::patch('leave/calendars/{calendar}', [LeaveCalendarController::class, 'update'])
+            ->middleware('permission:leave_calendars.manage')
+            ->name('api.v1.admin.leave.calendars.update');
+        Route::post('leave/calendars/{calendar}/days', [LeaveCalendarController::class, 'storeDay'])
+            ->middleware('permission:leave_calendars.manage')
+            ->name('api.v1.admin.leave.calendars.days.store');
+        Route::delete('leave/calendars/{calendar}/days/{day}', [LeaveCalendarController::class, 'destroyDay'])
+            ->middleware('permission:leave_calendars.manage')
+            ->name('api.v1.admin.leave.calendars.days.destroy');
+
+        Route::post('leave/balances/adjust', [AdminLeaveBalanceController::class, 'adjust'])
+            ->middleware(['permission:leave_balances.adjust', 'fresh.mfa'])
+            ->name('api.v1.admin.leave.balances.adjust');
     });
 });

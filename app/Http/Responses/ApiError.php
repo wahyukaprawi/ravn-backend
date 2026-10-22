@@ -75,6 +75,16 @@ class ApiError
         return new self(self::CODE_CONFLICT, $message, $details, 409);
     }
 
+    public static function idempotencyConflict(): self
+    {
+        return new self(
+            self::CODE_IDEMPOTENCY_CONFLICT,
+            'Idempotency-Key was used with a different request payload.',
+            [],
+            409,
+        );
+    }
+
     public static function rateLimited(string $message, ?int $retryAfter = null): self
     {
         return new self(

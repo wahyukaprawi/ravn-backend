@@ -8,6 +8,7 @@ use App\Http\Responses\ApiError;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\LeaveService;
+use App\Services\ManagerResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -17,6 +18,7 @@ class LeaveRequestController extends Controller
 {
     public function __construct(
         private readonly LeaveService $leave,
+        private readonly ManagerResolver $managers,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -34,7 +36,7 @@ class LeaveRequestController extends Controller
                     ->toResponse($request->header('X-Request-Id'));
             }
 
-            $query->whereIn('user_id', User::query()->where('manager_id', $actor->getKey())->pluck('id'));
+            $query->whereIn('user_id', $this->managers->directReportIds($actor));
         } elseif ($scope === 'all') {
             if (! $actor->hasPermissionTo('leave_requests.view_any')) {
                 return ApiError::forbidden('You are not allowed to view all leave requests.')

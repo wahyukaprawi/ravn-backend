@@ -4,10 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class WorkLocation extends Model
 {
-    protected $fillable = ['name', 'address', 'latitude', 'longitude', 'radius_meters', 'timezone', 'active'];
+    use SoftDeletes;
+
+    protected $fillable = [
+        'code',
+        'name',
+        'address',
+        'remote_address',
+        'latitude',
+        'longitude',
+        'radius_meters',
+        'timezone',
+        'active',
+    ];
 
     protected function casts(): array
     {
@@ -22,5 +35,10 @@ class WorkLocation extends Model
     public function schedules(): HasMany
     {
         return $this->hasMany(Schedule::class);
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(EmployeeAssignment::class);
     }
 }

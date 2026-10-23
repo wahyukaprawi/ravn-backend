@@ -1,16 +1,24 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\DepartmentController;
+use App\Http\Controllers\Api\V1\Admin\EmployeeImportController;
+use App\Http\Controllers\Api\V1\Admin\HistoryCorrectionController;
 use App\Http\Controllers\Api\V1\Admin\LeaveBalanceController as AdminLeaveBalanceController;
 use App\Http\Controllers\Api\V1\Admin\LeaveCalendarController;
 use App\Http\Controllers\Api\V1\Admin\LeavePolicyController;
 use App\Http\Controllers\Api\V1\Admin\LeaveTypeController as AdminLeaveTypeController;
+use App\Http\Controllers\Api\V1\Admin\PositionController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\UserController;
+use App\Http\Controllers\Api\V1\Admin\WorkLocationController;
 use App\Http\Controllers\Api\V1\Auth\ActivationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\MfaController;
 use App\Http\Controllers\Api\V1\Auth\PasswordResetController;
+use App\Http\Controllers\Api\V1\Employee\AssignmentController;
+use App\Http\Controllers\Api\V1\Employee\EmployeeController;
+use App\Http\Controllers\Api\V1\Employee\EmploymentController;
 use App\Http\Controllers\Api\V1\Leave\LeaveApprovalController;
 use App\Http\Controllers\Api\V1\Leave\LeaveBalanceController;
 use App\Http\Controllers\Api\V1\Leave\LeaveRequestController;
@@ -61,6 +69,56 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('me/sessions/{id}', [SessionController::class, 'destroy'])->name('api.v1.me.sessions.destroy');
     });
 
+    Route::prefix('employees')->middleware('auth:sanctum')->group(function (): void {
+        Route::get('/', [EmployeeController::class, 'index'])
+            ->middleware('permission:employees.view_any')
+            ->name('api.v1.employees.index');
+        Route::post('/', [EmployeeController::class, 'store'])
+            ->middleware('permission:employees.create')
+            ->name('api.v1.employees.store');
+        Route::get('{employee}', [EmployeeController::class, 'show'])->name('api.v1.employees.show');
+        Route::patch('{employee}', [EmployeeController::class, 'update'])
+            ->middleware('permission:employees.update')
+            ->name('api.v1.employees.update');
+        Route::delete('{employee}', [EmployeeController::class, 'destroy'])
+            ->middleware('permission:employees.delete')
+            ->name('api.v1.employees.destroy');
+        Route::post('{id}/restore', [EmployeeController::class, 'restore'])
+            ->middleware('permission:employees.delete')
+            ->name('api.v1.employees.restore');
+        Route::get('{employee}/history', [EmployeeController::class, 'history'])
+            ->middleware('permission:employees.view_history')
+            ->name('api.v1.employees.history');
+
+        Route::get('{employee}/employments', [EmploymentController::class, 'index'])
+            ->middleware('permission:employments.view')
+            ->name('api.v1.employees.employments.index');
+        Route::post('{employee}/employments', [EmploymentController::class, 'store'])
+            ->middleware('permission:employments.create')
+            ->name('api.v1.employees.employments.store');
+
+        Route::get('{employee}/assignments', [AssignmentController::class, 'index'])
+            ->middleware('permission:assignments.view')
+            ->name('api.v1.employees.assignments.index');
+        Route::post('{employee}/assignments', [AssignmentController::class, 'store'])
+            ->middleware('permission:assignments.create')
+            ->name('api.v1.employees.assignments.store');
+    });
+
+    Route::patch('employments/{employment}', [EmploymentController::class, 'update'])
+        ->middleware(['auth:sanctum', 'permission:employments.update'])
+        ->name('api.v1.employments.update');
+    Route::post('employments/{employment}/terminate', [EmploymentController::class, 'terminate'])
+        ->middleware(['auth:sanctum', 'permission:employments.terminate'])
+        ->name('api.v1.employments.terminate');
+
+    Route::patch('assignments/{assignment}', [AssignmentController::class, 'update'])
+        ->middleware(['auth:sanctum', 'permission:assignments.update'])
+        ->name('api.v1.assignments.update');
+    Route::delete('assignments/{assignment}', [AssignmentController::class, 'destroy'])
+        ->middleware(['auth:sanctum', 'permission:assignments.update'])
+        ->name('api.v1.assignments.destroy');
+
     Route::prefix('leave')->middleware('auth:sanctum')->group(function (): void {
         Route::get('types', [LeaveTypeController::class, 'index'])
             ->middleware('permission:leave_policies.view')
@@ -98,6 +156,109 @@ Route::prefix('v1')->group(function (): void {
     });
 
     Route::prefix('admin')->middleware('auth:sanctum')->group(function (): void {
+        Route::prefix('departments')->group(function (): void {
+            Route::get('/', [DepartmentController::class, 'index'])
+                ->middleware('permission:departments.view_any')
+                ->name('api.v1.admin.departments.index');
+            Route::post('/', [DepartmentController::class, 'store'])
+                ->middleware('permission:departments.create')
+                ->name('api.v1.admin.departments.store');
+            Route::get('{department}', [DepartmentController::class, 'show'])
+                ->middleware('permission:departments.view')
+                ->name('api.v1.admin.departments.show');
+            Route::patch('{department}', [DepartmentController::class, 'update'])
+                ->middleware('permission:departments.update')
+                ->name('api.v1.admin.departments.update');
+            Route::delete('{department}', [DepartmentController::class, 'destroy'])
+                ->middleware('permission:departments.delete')
+                ->name('api.v1.admin.departments.destroy');
+            Route::post('{id}/restore', [DepartmentController::class, 'restore'])
+                ->middleware('permission:departments.delete')
+                ->name('api.v1.admin.departments.restore');
+        });
+
+        Route::prefix('positions')->group(function (): void {
+            Route::get('/', [PositionController::class, 'index'])
+                ->middleware('permission:positions.view_any')
+                ->name('api.v1.admin.positions.index');
+            Route::post('/', [PositionController::class, 'store'])
+                ->middleware('permission:positions.create')
+                ->name('api.v1.admin.positions.store');
+            Route::get('{position}', [PositionController::class, 'show'])
+                ->middleware('permission:positions.view')
+                ->name('api.v1.admin.positions.show');
+            Route::patch('{position}', [PositionController::class, 'update'])
+                ->middleware('permission:positions.update')
+                ->name('api.v1.admin.positions.update');
+            Route::delete('{position}', [PositionController::class, 'destroy'])
+                ->middleware('permission:positions.delete')
+                ->name('api.v1.admin.positions.destroy');
+            Route::post('{id}/restore', [PositionController::class, 'restore'])
+                ->middleware('permission:positions.delete')
+                ->name('api.v1.admin.positions.restore');
+        });
+
+        Route::prefix('work-locations')->group(function (): void {
+            Route::get('/', [WorkLocationController::class, 'index'])
+                ->middleware('permission:work_locations.view_any')
+                ->name('api.v1.admin.work-locations.index');
+            Route::post('/', [WorkLocationController::class, 'store'])
+                ->middleware('permission:work_locations.create')
+                ->name('api.v1.admin.work-locations.store');
+            Route::get('{workLocation}', [WorkLocationController::class, 'show'])
+                ->middleware('permission:work_locations.view')
+                ->name('api.v1.admin.work-locations.show');
+            Route::patch('{workLocation}', [WorkLocationController::class, 'update'])
+                ->middleware('permission:work_locations.update')
+                ->name('api.v1.admin.work-locations.update');
+            Route::delete('{workLocation}', [WorkLocationController::class, 'destroy'])
+                ->middleware('permission:work_locations.delete')
+                ->name('api.v1.admin.work-locations.destroy');
+            Route::post('{id}/restore', [WorkLocationController::class, 'restore'])
+                ->middleware('permission:work_locations.delete')
+                ->name('api.v1.admin.work-locations.restore');
+        });
+
+        Route::post('employees/imports', [EmployeeImportController::class, 'store'])
+            ->middleware('permission:employees.import')
+            ->name('api.v1.admin.employees.imports.store');
+        Route::get('employees/imports/{batch}', [EmployeeImportController::class, 'show'])
+            ->middleware('permission:employees.import.view')
+            ->name('api.v1.admin.employees.imports.show');
+        Route::post('employees/imports/{batch}/commit', [EmployeeImportController::class, 'commit'])
+            ->middleware(['permission:employees.import.commit', 'idempotency'])
+            ->name('api.v1.admin.employees.imports.commit');
+
+        Route::prefix('history-corrections')->group(function (): void {
+            Route::get('/', [HistoryCorrectionController::class, 'index'])
+                ->middleware('permission:history_corrections.view')
+                ->name('api.v1.admin.history-corrections.index');
+            Route::post('/', [HistoryCorrectionController::class, 'store'])
+                ->middleware('permission:history_corrections.create')
+                ->name('api.v1.admin.history-corrections.store');
+            Route::get('{correction}', [HistoryCorrectionController::class, 'show'])
+                ->middleware('permission:history_corrections.view')
+                ->name('api.v1.admin.history-corrections.show');
+            Route::post('{correction}/submit', [HistoryCorrectionController::class, 'submit'])
+                ->middleware('permission:history_corrections.submit')
+                ->name('api.v1.admin.history-corrections.submit');
+            Route::post('{correction}/approve', [HistoryCorrectionController::class, 'approve'])
+                ->middleware(['permission:history_corrections.approve', 'fresh.mfa'])
+                ->name('api.v1.admin.history-corrections.approve');
+            Route::post('{correction}/reject', [HistoryCorrectionController::class, 'reject'])
+                ->middleware(['permission:history_corrections.approve', 'fresh.mfa'])
+                ->name('api.v1.admin.history-corrections.reject');
+            Route::post('{correction}/execute', [HistoryCorrectionController::class, 'execute'])
+                ->middleware(['permission:history_corrections.execute', 'fresh.mfa'])
+                ->name('api.v1.admin.history-corrections.execute');
+            Route::post('{correction}/cancel', [HistoryCorrectionController::class, 'cancel'])
+                ->middleware('permission:history_corrections.create')
+                ->name('api.v1.admin.history-corrections.cancel');
+            Route::get('{correction}/evidence', [HistoryCorrectionController::class, 'evidence'])
+                ->middleware('permission:history_corrections.view')
+                ->name('api.v1.admin.history-corrections.evidence');
+        });
+
         Route::get('users', [UserController::class, 'index'])
             ->middleware('permission:users.view')
             ->name('api.v1.admin.users.index');

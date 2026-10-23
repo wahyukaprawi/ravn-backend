@@ -83,6 +83,11 @@ class RbacSeeder extends Seeder
         'reports.export',
         'reports.view_sensitive',
         'reports.manage_exports',
+        'announcements.view',
+        'announcements.manage',
+        'announcements.publish',
+        'announcements.archive',
+        'announcements.view_analytics',
     ];
 
     public const OPERATIONAL_PERMISSIONS = [
@@ -172,6 +177,11 @@ class RbacSeeder extends Seeder
             'reports.view',
             'reports.export',
             'reports.manage_exports',
+            'announcements.view',
+            'announcements.manage',
+            'announcements.publish',
+            'announcements.archive',
+            'announcements.view_analytics',
             'history_corrections.view',
             'history_corrections.create',
             'history_corrections.submit',
@@ -209,6 +219,7 @@ class RbacSeeder extends Seeder
             'attendance.corrections.approve',
             'reports.view',
             'reports.export',
+            'announcements.view',
             'leave_requests.view_scope',
             'leave_policies.view',
             'workflow.view_own',
@@ -223,6 +234,7 @@ class RbacSeeder extends Seeder
             'attendance.corrections.create',
             'leave_policies.view',
             'workflow.view_own',
+            'announcements.view',
         ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

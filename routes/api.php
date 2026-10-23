@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AnnouncementAdminController;
 use App\Http\Controllers\Api\V1\Admin\AttendanceScheduleController;
 use App\Http\Controllers\Api\V1\Admin\DepartmentController;
 use App\Http\Controllers\Api\V1\Admin\EmployeeImportController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\Api\V1\Admin\PositionController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\UserController;
 use App\Http\Controllers\Api\V1\Admin\WorkLocationController;
+use App\Http\Controllers\Api\V1\Announcements\AnnouncementController;
 use App\Http\Controllers\Api\V1\Attendance\AttendanceController;
 use App\Http\Controllers\Api\V1\Attendance\AttendanceCorrectionController;
 use App\Http\Controllers\Api\V1\Auth\ActivationController;
@@ -88,6 +90,18 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/', [DeviceController::class, 'store'])->name('api.v1.devices.store');
         Route::delete('{device}', [DeviceController::class, 'destroy'])->name('api.v1.devices.destroy');
     });
+
+    Route::prefix('announcements')
+        ->middleware(['auth:sanctum', 'permission:announcements.view'])
+        ->group(function (): void {
+            Route::get('/', [AnnouncementController::class, 'index'])->name('api.v1.announcements.index');
+            Route::get('{announcement}', [AnnouncementController::class, 'show'])
+                ->whereNumber('announcement')
+                ->name('api.v1.announcements.show');
+            Route::post('{announcement}/read', [AnnouncementController::class, 'read'])
+                ->whereNumber('announcement')
+                ->name('api.v1.announcements.read');
+        });
 
     Route::prefix('employees')->middleware('auth:sanctum')->group(function (): void {
         Route::get('/', [EmployeeController::class, 'index'])
@@ -435,6 +449,35 @@ Route::prefix('v1')->group(function (): void {
         Route::post('leave/balances/adjust', [AdminLeaveBalanceController::class, 'adjust'])
             ->middleware(['permission:leave_balances.adjust', 'fresh.mfa'])
             ->name('api.v1.admin.leave.balances.adjust');
+
+        Route::prefix('announcements')->group(function (): void {
+            Route::get('/', [AnnouncementAdminController::class, 'index'])
+                ->middleware('permission:announcements.manage')
+                ->name('api.v1.admin.announcements.index');
+            Route::post('/', [AnnouncementAdminController::class, 'store'])
+                ->middleware('permission:announcements.manage')
+                ->name('api.v1.admin.announcements.store');
+            Route::get('{announcement}/analytics', [AnnouncementAdminController::class, 'analytics'])
+                ->middleware('permission:announcements.view_analytics')
+                ->whereNumber('announcement')
+                ->name('api.v1.admin.announcements.analytics');
+            Route::get('{announcement}', [AnnouncementAdminController::class, 'show'])
+                ->middleware('permission:announcements.manage')
+                ->whereNumber('announcement')
+                ->name('api.v1.admin.announcements.show');
+            Route::patch('{announcement}', [AnnouncementAdminController::class, 'update'])
+                ->middleware('permission:announcements.manage')
+                ->whereNumber('announcement')
+                ->name('api.v1.admin.announcements.update');
+            Route::post('{announcement}/publish', [AnnouncementAdminController::class, 'publish'])
+                ->middleware('permission:announcements.publish')
+                ->whereNumber('announcement')
+                ->name('api.v1.admin.announcements.publish');
+            Route::post('{announcement}/archive', [AnnouncementAdminController::class, 'archive'])
+                ->middleware('permission:announcements.archive')
+                ->whereNumber('announcement')
+                ->name('api.v1.admin.announcements.archive');
+        });
 
         Route::get('notification-deliveries', [NotificationDeliveryController::class, 'index'])
             ->middleware('permission:notifications.view_failures')

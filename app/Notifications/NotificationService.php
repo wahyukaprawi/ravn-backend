@@ -15,14 +15,20 @@ class NotificationService
     /**
      * @param  array<string, mixed>  $context
      */
-    public function notify(OutboxMessage $message, User $recipient, string $type, string $title, string $body, array $context = []): ?Notification
+    public function notify(OutboxMessage $message, User $recipient, string $type, string $title, string $body, array $context = [], ?array $channels = null): ?Notification
     {
         if (! $recipient->isActive()) {
             return null;
         }
 
+        $channels ??= [
+            NotificationDelivery::CHANNEL_IN_APP,
+            NotificationDelivery::CHANNEL_EMAIL,
+            NotificationDelivery::CHANNEL_PUSH,
+        ];
+
         try {
-            [$notification, $deliveryIds] = DB::transaction(function () use ($message, $recipient, $type, $title, $body, $context): array {
+            [$notification, $deliveryIds] = DB::transaction(function () use ($message, $recipient, $type, $title, $body, $context, $channels): array {
                 $notification = Notification::query()->firstOrCreate(
                     [
                         'outbox_message_id' => $message->getKey(),
@@ -43,17 +49,19 @@ class NotificationService
                     return [$notification, []];
                 }
 
-                $notification->deliveries()->create([
-                    'channel' => NotificationDelivery::CHANNEL_IN_APP,
-                    'status' => NotificationDelivery::STATUS_SENT,
-                    'attempts' => 1,
-                    'available_at' => now(),
-                    'sent_at' => now(),
-                ]);
+                if (in_array(NotificationDelivery::CHANNEL_IN_APP, $channels, true)) {
+                    $notification->deliveries()->create([
+                        'channel' => NotificationDelivery::CHANNEL_IN_APP,
+                        'status' => NotificationDelivery::STATUS_SENT,
+                        'attempts' => 1,
+                        'available_at' => now(),
+                        'sent_at' => now(),
+                    ]);
+                }
 
                 $deliveryIds = [];
 
-                if (! empty($recipient->email)) {
+                if (in_array(NotificationDelivery::CHANNEL_EMAIL, $channels, true) && ! empty($recipient->email)) {
                     $deliveryIds[] = $notification->deliveries()->create([
                         'channel' => NotificationDelivery::CHANNEL_EMAIL,
                         'status' => NotificationDelivery::STATUS_PENDING,
@@ -62,7 +70,7 @@ class NotificationService
                     ])->getKey();
                 }
 
-                if ($recipient->deviceTokens()->where('active', true)->exists()) {
+                if (in_array(NotificationDelivery::CHANNEL_PUSH, $channels, true) && $recipient->deviceTokens()->where('active', true)->exists()) {
                     $deliveryIds[] = $notification->deliveries()->create([
                         'channel' => NotificationDelivery::CHANNEL_PUSH,
                         'status' => NotificationDelivery::STATUS_PENDING,

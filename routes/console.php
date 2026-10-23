@@ -12,3 +12,4 @@ Schedule::command('leave:sla-remind')->hourly();
 Schedule::command('reports:prune')->hourly();
 Schedule::command('outbox:process --once')->everyMinute()->withoutOverlapping();
 Schedule::command('notifications:recover-deliveries')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('announcements:publish-scheduled')->everyMinute()->withoutOverlapping();

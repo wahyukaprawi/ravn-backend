@@ -9,7 +9,7 @@ class AnnouncementRead extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['announcement_id', 'user_id', 'read_at'];
+    protected $fillable = ['announcement_id', 'employee_id', 'user_id', 'read_at'];
 
     protected function casts(): array
     {
@@ -24,5 +24,10 @@ class AnnouncementRead extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
     }
 }

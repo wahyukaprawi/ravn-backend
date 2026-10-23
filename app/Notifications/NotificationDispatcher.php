@@ -2,19 +2,25 @@
 
 namespace App\Notifications;
 
+use App\Models\Announcement;
 use App\Models\LeaveCancellationRequest;
 use App\Models\LeaveRequest;
+use App\Models\NotificationDelivery;
 use App\Models\OutboxMessage;
 use App\Models\ReportExport;
 use App\Models\User;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowStep;
+use App\Services\AnnouncementService;
 use Illuminate\Support\Collection;
 use Spatie\Permission\Models\Role;
 
 class NotificationDispatcher
 {
-    public function __construct(private readonly NotificationService $notifications) {}
+    public function __construct(
+        private readonly NotificationService $notifications,
+        private readonly AnnouncementService $announcements,
+    ) {}
 
     public function dispatch(OutboxMessage $message): int
     {
@@ -123,6 +129,15 @@ class NotificationDispatcher
                 'Your report export could not be generated.',
                 ['export_id' => $payload['export_id'] ?? null, 'report_code' => $payload['report_code'] ?? null],
             ),
+            'announcement.published' => $this->notify(
+                $message,
+                $this->announcementRecipients($payload),
+                'announcement.published',
+                'New announcement',
+                'A new announcement has been published.',
+                ['announcement_id' => $payload['announcement_id'] ?? null],
+                [NotificationDelivery::CHANNEL_IN_APP],
+            ),
             default => 0,
         };
     }
@@ -131,7 +146,7 @@ class NotificationDispatcher
      * @param  Collection<int, User>  $recipients
      * @param  array<string, mixed>  $context
      */
-    protected function notify(OutboxMessage $message, Collection $recipients, string $type, string $title, string $body, array $context): int
+    protected function notify(OutboxMessage $message, Collection $recipients, string $type, string $title, string $body, array $context, ?array $channels = null): int
     {
         $created = 0;
 
@@ -140,7 +155,7 @@ class NotificationDispatcher
                 continue;
             }
 
-            if ($this->notifications->notify($message, $recipient, $type, $title, $body, $context) !== null) {
+            if ($this->notifications->notify($message, $recipient, $type, $title, $body, $context, $channels) !== null) {
                 $created++;
             }
         }
@@ -282,6 +297,15 @@ class NotificationDispatcher
         $export = ReportExport::query()->find($payload['export_id'] ?? null);
 
         return $this->activeUsers([$export?->user_id]);
+    }
+
+    protected function announcementRecipients(array $payload): Collection
+    {
+        $announcement = Announcement::query()->find($payload['announcement_id'] ?? null);
+
+        return $announcement
+            ? $this->announcements->recipients($announcement)
+            : collect();
     }
 
     protected function correctionMessage(string $eventType): string

@@ -10,3 +10,5 @@ Artisan::command('inspire', function () {
 
 Schedule::command('leave:sla-remind')->hourly();
 Schedule::command('reports:prune')->hourly();
+Schedule::command('outbox:process --once')->everyMinute()->withoutOverlapping();
+Schedule::command('notifications:recover-deliveries')->everyFiveMinutes()->withoutOverlapping();

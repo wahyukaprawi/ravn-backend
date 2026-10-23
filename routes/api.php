@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Admin\LeaveBalanceController as AdminLeaveBalanc
 use App\Http\Controllers\Api\V1\Admin\LeaveCalendarController;
 use App\Http\Controllers\Api\V1\Admin\LeavePolicyController;
 use App\Http\Controllers\Api\V1\Admin\LeaveTypeController as AdminLeaveTypeController;
+use App\Http\Controllers\Api\V1\Admin\NotificationDeliveryController;
 use App\Http\Controllers\Api\V1\Admin\PositionController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\UserController;
@@ -27,6 +28,8 @@ use App\Http\Controllers\Api\V1\Leave\LeaveBalanceController;
 use App\Http\Controllers\Api\V1\Leave\LeaveRequestController;
 use App\Http\Controllers\Api\V1\Leave\LeaveTypeController;
 use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\Notifications\DeviceController;
+use App\Http\Controllers\Api\V1\Notifications\NotificationController;
 use App\Http\Controllers\Api\V1\Reports\ReportController;
 use App\Http\Controllers\Api\V1\Reports\ReportExportController;
 use App\Http\Controllers\Api\V1\SessionController;
@@ -72,6 +75,18 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('me/sessions', [SessionController::class, 'index'])->name('api.v1.me.sessions.index');
         Route::delete('me/sessions/{id}', [SessionController::class, 'destroy'])->name('api.v1.me.sessions.destroy');
+    });
+
+    Route::prefix('notifications')->middleware('auth:sanctum')->group(function (): void {
+        Route::get('/', [NotificationController::class, 'index'])->name('api.v1.notifications.index');
+        Route::post('read-all', [NotificationController::class, 'readAll'])->name('api.v1.notifications.read-all');
+        Route::get('{notification}', [NotificationController::class, 'show'])->name('api.v1.notifications.show');
+        Route::post('{notification}/read', [NotificationController::class, 'read'])->name('api.v1.notifications.read');
+    });
+
+    Route::prefix('devices')->middleware('auth:sanctum')->group(function (): void {
+        Route::post('/', [DeviceController::class, 'store'])->name('api.v1.devices.store');
+        Route::delete('{device}', [DeviceController::class, 'destroy'])->name('api.v1.devices.destroy');
     });
 
     Route::prefix('employees')->middleware('auth:sanctum')->group(function (): void {
@@ -420,5 +435,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('leave/balances/adjust', [AdminLeaveBalanceController::class, 'adjust'])
             ->middleware(['permission:leave_balances.adjust', 'fresh.mfa'])
             ->name('api.v1.admin.leave.balances.adjust');
+
+        Route::get('notification-deliveries', [NotificationDeliveryController::class, 'index'])
+            ->middleware('permission:notifications.view_failures')
+            ->name('api.v1.admin.notification-deliveries.index');
+        Route::post('notification-deliveries/{delivery}/retry', [NotificationDeliveryController::class, 'retry'])
+            ->middleware(['permission:notifications.retry', 'fresh.mfa'])
+            ->name('api.v1.admin.notification-deliveries.retry');
     });
 });

@@ -42,8 +42,6 @@ class RbacSeeder extends Seeder
         'history_corrections.submit',
         'history_corrections.approve',
         'history_corrections.execute',
-        'notifications.view_failures',
-        'notifications.retry',
         'users.create',
         'users.view',
         'users.update',
@@ -87,6 +85,11 @@ class RbacSeeder extends Seeder
         'reports.manage_exports',
     ];
 
+    public const OPERATIONAL_PERMISSIONS = [
+        'notifications.view_failures',
+        'notifications.retry',
+    ];
+
     public const SLICE_01_PERMISSIONS = [
         'users.create',
         'users.view',
@@ -108,7 +111,7 @@ class RbacSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        foreach (self::APPROVED_PERMISSIONS as $name) {
+        foreach (array_merge(self::APPROVED_PERMISSIONS, self::OPERATIONAL_PERMISSIONS) as $name) {
             Permission::findOrCreate($name, 'web');
         }
 
@@ -226,7 +229,7 @@ class RbacSeeder extends Seeder
 
         $this->command?->info(sprintf(
             'RBAC seeded: %d permissions, %d roles. super_admin holds %d.',
-            count(self::APPROVED_PERMISSIONS),
+            count(self::APPROVED_PERMISSIONS) + count(self::OPERATIONAL_PERMISSIONS),
             count(self::ROLES),
             $superAdmin->permissions()->count(),
         ));

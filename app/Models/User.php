@@ -88,4 +88,15 @@ class User extends Authenticatable
     {
         return $this->hasOne(Employee::class);
     }
+
+    public function appNotifications(): HasMany
+    {
+        return $this->hasMany(Notification::class, 'notifiable_id')
+            ->where('notifiable_type', $this->getMorphClass());
+    }
+
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
 }

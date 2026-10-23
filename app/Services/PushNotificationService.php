@@ -10,7 +10,15 @@ class PushNotificationService
 {
     public function registerToken(User $user, string $token, string $platform, ?string $deviceId = null): DeviceToken
     {
-        return DB::transaction(function () use ($user, $token, $platform, $deviceId) {
+        return DB::transaction(function () use ($user, $token, $platform, $deviceId): DeviceToken {
+            if ($deviceId !== null && $deviceId !== '') {
+                DeviceToken::query()
+                    ->where('user_id', $user->getKey())
+                    ->where('device_id', $deviceId)
+                    ->where('token', '!=', $token)
+                    ->update(['active' => false]);
+            }
+
             return DeviceToken::query()->updateOrCreate(
                 ['token' => $token],
                 [
@@ -24,18 +32,8 @@ class PushNotificationService
         });
     }
 
-    public function deactivateToken(string $token): void
+    public function revoke(DeviceToken $device): void
     {
-        DeviceToken::query()->where('token', $token)->update(['active' => false]);
-    }
-
-    public function send(User $user, string $title, string $body, array $data = []): int
-    {
-        $count = DeviceToken::query()
-            ->where('user_id', $user->getKey())
-            ->where('active', true)
-            ->count();
-
-        return $count;
+        $device->forceFill(['active' => false])->save();
     }
 }

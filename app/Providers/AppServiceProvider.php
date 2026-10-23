@@ -2,13 +2,19 @@
 
 namespace App\Providers;
 
+use App\Events\OutboxMessageDispatched;
 use App\Models\PersonalAccessToken;
+use App\Notifications\CreateNotificationsFromOutbox;
+use App\Notifications\Push\FcmPushGateway;
+use App\Notifications\Push\LogPushGateway;
+use App\Notifications\Push\PushGateway;
 use App\Reporting\AttendanceDailyReport;
 use App\Reporting\AttendanceSummaryReport;
 use App\Reporting\AuditActivityReport;
 use App\Reporting\ReportRegistry;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -23,13 +29,27 @@ class AppServiceProvider extends ServiceProvider
             new AttendanceDailyReport,
             new AuditActivityReport,
         ]));
+
+        $this->app->bind(PushGateway::class, fn () => match (config('notifications.push.driver')) {
+            'fcm' => new FcmPushGateway((array) config('notifications.push.fcm')),
+            default => new LogPushGateway,
+        });
     }
 
     public function boot(): void
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
+        Event::listen(
+            OutboxMessageDispatched::class,
+            CreateNotificationsFromOutbox::class,
+        );
+
         Gate::before(function ($user, string $ability) {
+            if (in_array($ability, ['notifications.view_failures', 'notifications.retry'], true)) {
+                return null;
+            }
+
             if ($user->hasRole('super_admin')) {
                 return true;
             }

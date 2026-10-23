@@ -9,6 +9,8 @@ class DeviceToken extends Model
 {
     protected $fillable = ['user_id', 'token', 'platform', 'device_id', 'active', 'last_used_at'];
 
+    protected $hidden = ['token'];
+
     protected function casts(): array
     {
         return ['active' => 'boolean', 'last_used_at' => 'datetime'];

@@ -140,6 +140,25 @@ services:
         restart: unless-stopped
         networks: [ravn]
 
+    scheduler:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        profiles: [worker]
+        user: "33:33"
+        depends_on:
+            mysql:
+                condition: service_healthy
+        environment:
+            <<: *app-env
+        volumes:
+            - .:/var/www/html
+            - vendor:/var/www/html/vendor
+            - storage:/var/www/html/storage
+        command: ["php", "artisan", "schedule:work"]
+        restart: unless-stopped
+        networks: [ravn]
+
 networks:
     ravn:
         driver: bridge

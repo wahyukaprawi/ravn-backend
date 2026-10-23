@@ -211,8 +211,12 @@ abstract class AttendanceTestCase extends TestCase
         return $this->asUser($user, true)->postJson('/api/v1/attendance/corrections/'.$id.'/approve');
     }
 
-    protected function executeCorrection(User $user, int $id): TestResponse
+    protected function executeCorrection(User $user, int $id, ?string $key = null): TestResponse
     {
-        return $this->asUser($user, true)->postJson('/api/v1/attendance/corrections/'.$id.'/execute');
+        return $this->asUser($user, true)->postJson(
+            '/api/v1/attendance/corrections/'.$id.'/execute',
+            [],
+            ['Idempotency-Key' => $key ?? 'execute-'.$id],
+        );
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\AttendanceEvent;
 use App\Models\AttendanceSession;
+use App\Models\AuditLog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -61,6 +62,26 @@ class AttendanceCorrectionTest extends AttendanceTestCase
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'attendance.correction.executed']);
         $this->assertDatabaseHas('outbox_messages', ['event_type' => 'attendance.correction.executed']);
+    }
+
+    public function test_at_t21_execute_replays_with_the_same_idempotency_key(): void
+    {
+        $sessionId = $this->sessionFor($this->employee);
+
+        $correctionId = (int) $this->createCorrection($this->employee, $sessionId, [
+            'check_in_at' => '2026-06-15T08:45:00+07:00',
+        ])->assertCreated()->json('data.id');
+
+        $this->submitCorrection($this->employee, $correctionId)->assertOk();
+        $this->approveCorrection($this->manager, $correctionId)->assertOk();
+        $this->executeCorrection($this->hr, $correctionId)->assertOk();
+
+        $this->executeCorrection($this->hr, $correctionId)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'executed');
+
+        $this->assertDatabaseCount('attendance_events', 1);
+        $this->assertSame(1, AuditLog::query()->where('action', 'attendance.correction.executed')->count());
     }
 
     public function test_at_t22_the_approver_cannot_execute_the_same_sensitive_correction(): void

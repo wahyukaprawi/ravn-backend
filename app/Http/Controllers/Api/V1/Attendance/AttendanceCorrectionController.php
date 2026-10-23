@@ -122,6 +122,12 @@ class AttendanceCorrectionController extends Controller
 
     public function execute(Request $request, AttendanceCorrection $correction): JsonResponse
     {
+        if (! $request->hasHeader('Idempotency-Key')) {
+            return ApiError::validation('Idempotency-Key is required.', [
+                'Idempotency-Key' => ['Provide a unique key for this attendance mutation.'],
+            ])->toResponse($request->header('X-Request-Id'));
+        }
+
         $correction = $this->corrections->execute($correction, $request->user());
 
         return response()->json(['data' => AttendancePresenter::correction($correction)]);

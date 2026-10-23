@@ -156,7 +156,7 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware(['permission:attendance.corrections.approve', 'fresh.mfa'])
                 ->name('api.v1.attendance.corrections.reject');
             Route::post('{correction}/execute', [AttendanceCorrectionController::class, 'execute'])
-                ->middleware(['permission:attendance.corrections.execute', 'fresh.mfa'])
+                ->middleware(['permission:attendance.corrections.execute', 'fresh.mfa', 'idempotency'])
                 ->name('api.v1.attendance.corrections.execute');
             Route::post('{correction}/cancel', [AttendanceCorrectionController::class, 'cancel'])
                 ->middleware('permission:attendance.corrections.create')

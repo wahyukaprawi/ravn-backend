@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Report extends Model
 {
-    protected $fillable = ['code', 'name', 'scope', 'parameters', 'active'];
+    protected $fillable = ['code', 'name', 'scope', 'permission', 'sensitive', 'parameters', 'active'];
 
     protected function casts(): array
     {
-        return ['parameters' => 'array', 'active' => 'boolean'];
+        return ['parameters' => 'array', 'sensitive' => 'boolean', 'active' => 'boolean'];
     }
 
     public function exports(): HasMany

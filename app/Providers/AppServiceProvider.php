@@ -3,6 +3,10 @@
 namespace App\Providers;
 
 use App\Models\PersonalAccessToken;
+use App\Reporting\AttendanceDailyReport;
+use App\Reporting\AttendanceSummaryReport;
+use App\Reporting\AuditActivityReport;
+use App\Reporting\ReportRegistry;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -14,7 +18,11 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->singleton(ReportRegistry::class, fn () => new ReportRegistry([
+            new AttendanceSummaryReport,
+            new AttendanceDailyReport,
+            new AuditActivityReport,
+        ]));
     }
 
     public function boot(): void

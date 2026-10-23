@@ -81,6 +81,10 @@ class RbacSeeder extends Seeder
         'attendance.corrections.create',
         'attendance.corrections.approve',
         'attendance.corrections.execute',
+        'reports.view',
+        'reports.export',
+        'reports.view_sensitive',
+        'reports.manage_exports',
     ];
 
     public const SLICE_01_PERMISSIONS = [
@@ -162,6 +166,9 @@ class RbacSeeder extends Seeder
             'attendance.corrections.create',
             'attendance.corrections.approve',
             'attendance.corrections.execute',
+            'reports.view',
+            'reports.export',
+            'reports.manage_exports',
             'history_corrections.view',
             'history_corrections.create',
             'history_corrections.submit',
@@ -194,8 +201,11 @@ class RbacSeeder extends Seeder
             'work_locations.view',
             'attendance.view_scope',
             'attendance.review',
+            'attendance.reports.view',
             'attendance.corrections.create',
             'attendance.corrections.approve',
+            'reports.view',
+            'reports.export',
             'leave_requests.view_scope',
             'leave_policies.view',
             'workflow.view_own',

@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RbacSeeder::class,
             WorkflowSeeder::class,
+            ReportSeeder::class,
         ]);
 
         // User::factory(10)->create();

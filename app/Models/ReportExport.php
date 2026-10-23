@@ -13,26 +13,32 @@ class ReportExport extends Model
 
     public const STATUS_FAILED = 'failed';
 
+    public const STATUS_EXPIRED = 'expired';
+
     protected $fillable = [
         'user_id',
         'report_id',
         'report_code',
         'status',
         'format',
+        'scope',
         'filters',
         'disk',
         'path',
         'checksum',
+        'row_count',
         'expires_at',
         'downloaded_at',
         'downloaded_by',
         'last_error',
+        'failure_code',
     ];
 
     protected function casts(): array
     {
         return [
             'filters' => 'array',
+            'row_count' => 'integer',
             'expires_at' => 'datetime',
             'downloaded_at' => 'datetime',
         ];
@@ -41,6 +47,11 @@ class ReportExport extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function downloadedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'downloaded_by');
     }
 
     public function report(): BelongsTo

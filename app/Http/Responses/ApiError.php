@@ -14,6 +14,8 @@ class ApiError
 
     public const CODE_NOT_FOUND = 'NOT_FOUND';
 
+    public const CODE_EXPIRED = 'EXPIRED';
+
     public const CODE_CONFLICT = 'CONFLICT';
 
     public const CODE_IDEMPOTENCY_CONFLICT = 'IDEMPOTENCY_CONFLICT';
@@ -63,6 +65,11 @@ class ApiError
     public static function notFound(string $message = 'Resource not found.'): self
     {
         return new self(self::CODE_NOT_FOUND, $message, [], 404);
+    }
+
+    public static function expired(string $message = 'This resource has expired.'): self
+    {
+        return new self(self::CODE_EXPIRED, $message, [], 410);
     }
 
     public static function validation(string $message, array $details = []): self

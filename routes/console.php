@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('leave:sla-remind')->hourly();
+Schedule::command('reports:prune')->hourly();

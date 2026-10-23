@@ -27,6 +27,8 @@ use App\Http\Controllers\Api\V1\Leave\LeaveBalanceController;
 use App\Http\Controllers\Api\V1\Leave\LeaveRequestController;
 use App\Http\Controllers\Api\V1\Leave\LeaveTypeController;
 use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\Reports\ReportController;
+use App\Http\Controllers\Api\V1\Reports\ReportExportController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Support\Facades\Route;
@@ -164,6 +166,30 @@ Route::prefix('v1')->group(function (): void {
             Route::get('{correction}/evidence', [AttendanceCorrectionController::class, 'evidence'])
                 ->name('api.v1.attendance.corrections.evidence');
         });
+    });
+
+    Route::prefix('reports')->middleware('auth:sanctum')->group(function (): void {
+        Route::get('exports', [ReportExportController::class, 'index'])
+            ->middleware('permission:reports.view')
+            ->name('api.v1.reports.exports.index');
+        Route::get('exports/{export}', [ReportExportController::class, 'show'])
+            ->middleware('permission:reports.view')
+            ->name('api.v1.reports.exports.show');
+        Route::get('exports/{export}/download', [ReportExportController::class, 'download'])
+            ->middleware('permission:reports.view')
+            ->name('api.v1.reports.exports.download');
+
+        Route::get('/', [ReportController::class, 'index'])
+            ->middleware('permission:reports.view')
+            ->name('api.v1.reports.index');
+        Route::get('{code}', [ReportController::class, 'show'])
+            ->middleware('permission:reports.view')
+            ->where('code', '[a-z0-9._-]+')
+            ->name('api.v1.reports.show');
+        Route::post('{code}/exports', [ReportExportController::class, 'store'])
+            ->middleware('permission:reports.export')
+            ->where('code', '[a-z0-9._-]+')
+            ->name('api.v1.reports.exports.store');
     });
 
     Route::prefix('leave')->middleware('auth:sanctum')->group(function (): void {

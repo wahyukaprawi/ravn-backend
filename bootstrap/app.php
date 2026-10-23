@@ -69,6 +69,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     403 => ApiError::forbidden(),
                     404 => ApiError::notFound(),
                     409 => ApiError::conflict($e->getMessage() ?: 'Conflict.'),
+                    410 => ApiError::expired($e->getMessage() ?: 'This resource has expired.'),
                     422 => ApiError::validation($e->getMessage() ?: 'The given data was invalid.'),
                     429 => ApiError::rateLimited('Too many attempts. Please try again later.'),
                     default => new ApiError(

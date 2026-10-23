@@ -46,6 +46,10 @@ class AppServiceProvider extends ServiceProvider
         );
 
         Gate::before(function ($user, string $ability) {
+            if ($user === null) {
+                return null;
+            }
+
             if (in_array($ability, ['notifications.view_failures', 'notifications.retry'], true)) {
                 return null;
             }

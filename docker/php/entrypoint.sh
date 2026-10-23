@@ -26,7 +26,7 @@ if [ -d /var/www/html/storage ]; then
     done
     rm -rf "/var/www/html/storage/framework/{cache,sessions,views}"
     mkdir -p /var/www/html/bootstrap/cache
-    chown -R "$(id -u)":"$(id -g)" /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+    chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
 fi
 
 if [ -f /var/www/html/.env ] \

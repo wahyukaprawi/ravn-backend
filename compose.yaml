@@ -137,6 +137,8 @@ services:
             - vendor:/var/www/html/vendor
             - storage:/var/www/html/storage
         command: ["supervisord", "-c", "/etc/supervisor/supervisord.conf", "-n"]
+        healthcheck:
+            disable: true
         restart: unless-stopped
         networks: [ravn]
 
@@ -156,6 +158,8 @@ services:
             - vendor:/var/www/html/vendor
             - storage:/var/www/html/storage
         command: ["php", "artisan", "schedule:work"]
+        healthcheck:
+            disable: true
         restart: unless-stopped
         networks: [ravn]
 

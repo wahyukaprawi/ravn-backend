@@ -73,6 +73,14 @@ class RbacSeeder extends Seeder
         'work_locations.create',
         'work_locations.update',
         'work_locations.delete',
+        'attendance.view_any',
+        'attendance.view_scope',
+        'attendance.review',
+        'attendance.manage_schedules',
+        'attendance.reports.view',
+        'attendance.corrections.create',
+        'attendance.corrections.approve',
+        'attendance.corrections.execute',
     ];
 
     public const SLICE_01_PERMISSIONS = [
@@ -147,6 +155,13 @@ class RbacSeeder extends Seeder
             'work_locations.create',
             'work_locations.update',
             'work_locations.delete',
+            'attendance.view_any',
+            'attendance.review',
+            'attendance.manage_schedules',
+            'attendance.reports.view',
+            'attendance.corrections.create',
+            'attendance.corrections.approve',
+            'attendance.corrections.execute',
             'history_corrections.view',
             'history_corrections.create',
             'history_corrections.submit',
@@ -177,6 +192,10 @@ class RbacSeeder extends Seeder
             'positions.view',
             'work_locations.view_any',
             'work_locations.view',
+            'attendance.view_scope',
+            'attendance.review',
+            'attendance.corrections.create',
+            'attendance.corrections.approve',
             'leave_requests.view_scope',
             'leave_policies.view',
             'workflow.view_own',
@@ -188,6 +207,7 @@ class RbacSeeder extends Seeder
         $employee = Role::findByName('employee', 'web');
         $employee->syncPermissions([
             'employees.view',
+            'attendance.corrections.create',
             'leave_policies.view',
             'workflow.view_own',
         ]);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AttendanceScheduleController;
 use App\Http\Controllers\Api\V1\Admin\DepartmentController;
 use App\Http\Controllers\Api\V1\Admin\EmployeeImportController;
 use App\Http\Controllers\Api\V1\Admin\HistoryCorrectionController;
@@ -11,6 +12,8 @@ use App\Http\Controllers\Api\V1\Admin\PositionController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\UserController;
 use App\Http\Controllers\Api\V1\Admin\WorkLocationController;
+use App\Http\Controllers\Api\V1\Attendance\AttendanceController;
+use App\Http\Controllers\Api\V1\Attendance\AttendanceCorrectionController;
 use App\Http\Controllers\Api\V1\Auth\ActivationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
@@ -119,6 +122,50 @@ Route::prefix('v1')->group(function (): void {
         ->middleware(['auth:sanctum', 'permission:assignments.update'])
         ->name('api.v1.assignments.destroy');
 
+    Route::prefix('attendance')->middleware('auth:sanctum')->group(function (): void {
+        Route::get('status', [AttendanceController::class, 'status'])
+            ->name('api.v1.attendance.status');
+        Route::get('history', [AttendanceController::class, 'history'])
+            ->name('api.v1.attendance.history');
+        Route::get('sessions/{session}', [AttendanceController::class, 'show'])
+            ->name('api.v1.attendance.sessions.show');
+        Route::post('challenges', [AttendanceController::class, 'challenge'])
+            ->name('api.v1.attendance.challenges.store');
+        Route::post('check-in', [AttendanceController::class, 'checkIn'])
+            ->middleware('idempotency')
+            ->name('api.v1.attendance.check-in');
+        Route::post('check-out', [AttendanceController::class, 'checkOut'])
+            ->middleware('idempotency')
+            ->name('api.v1.attendance.check-out');
+
+        Route::prefix('corrections')->group(function (): void {
+            Route::get('/', [AttendanceCorrectionController::class, 'index'])
+                ->name('api.v1.attendance.corrections.index');
+            Route::post('/', [AttendanceCorrectionController::class, 'store'])
+                ->middleware('permission:attendance.corrections.create')
+                ->name('api.v1.attendance.corrections.store');
+            Route::get('{correction}', [AttendanceCorrectionController::class, 'show'])
+                ->name('api.v1.attendance.corrections.show');
+            Route::post('{correction}/submit', [AttendanceCorrectionController::class, 'submit'])
+                ->middleware('permission:attendance.corrections.create')
+                ->name('api.v1.attendance.corrections.submit');
+            Route::post('{correction}/approve', [AttendanceCorrectionController::class, 'approve'])
+                ->middleware(['permission:attendance.corrections.approve', 'fresh.mfa'])
+                ->name('api.v1.attendance.corrections.approve');
+            Route::post('{correction}/reject', [AttendanceCorrectionController::class, 'reject'])
+                ->middleware(['permission:attendance.corrections.approve', 'fresh.mfa'])
+                ->name('api.v1.attendance.corrections.reject');
+            Route::post('{correction}/execute', [AttendanceCorrectionController::class, 'execute'])
+                ->middleware(['permission:attendance.corrections.execute', 'fresh.mfa'])
+                ->name('api.v1.attendance.corrections.execute');
+            Route::post('{correction}/cancel', [AttendanceCorrectionController::class, 'cancel'])
+                ->middleware('permission:attendance.corrections.create')
+                ->name('api.v1.attendance.corrections.cancel');
+            Route::get('{correction}/evidence', [AttendanceCorrectionController::class, 'evidence'])
+                ->name('api.v1.attendance.corrections.evidence');
+        });
+    });
+
     Route::prefix('leave')->middleware('auth:sanctum')->group(function (): void {
         Route::get('types', [LeaveTypeController::class, 'index'])
             ->middleware('permission:leave_policies.view')
@@ -217,6 +264,24 @@ Route::prefix('v1')->group(function (): void {
             Route::post('{id}/restore', [WorkLocationController::class, 'restore'])
                 ->middleware('permission:work_locations.delete')
                 ->name('api.v1.admin.work-locations.restore');
+        });
+
+        Route::prefix('attendance/schedules')->group(function (): void {
+            Route::get('/', [AttendanceScheduleController::class, 'index'])
+                ->middleware('permission:attendance.manage_schedules')
+                ->name('api.v1.admin.attendance.schedules.index');
+            Route::post('/', [AttendanceScheduleController::class, 'store'])
+                ->middleware('permission:attendance.manage_schedules')
+                ->name('api.v1.admin.attendance.schedules.store');
+            Route::get('{schedule}', [AttendanceScheduleController::class, 'show'])
+                ->middleware('permission:attendance.manage_schedules')
+                ->name('api.v1.admin.attendance.schedules.show');
+            Route::patch('{schedule}', [AttendanceScheduleController::class, 'update'])
+                ->middleware('permission:attendance.manage_schedules')
+                ->name('api.v1.admin.attendance.schedules.update');
+            Route::delete('{schedule}', [AttendanceScheduleController::class, 'destroy'])
+                ->middleware('permission:attendance.manage_schedules')
+                ->name('api.v1.admin.attendance.schedules.destroy');
         });
 
         Route::post('employees/imports', [EmployeeImportController::class, 'store'])

@@ -140,7 +140,8 @@ class ReportExportService
             $this->fail($export, 'permission_revoked', 'Access to this report was revoked before the export ran.');
         } catch (ValidationException) {
             $this->fail($export, 'invalid_filters', 'The stored export filters are no longer valid.');
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            report($exception);
             $this->fail($export, 'generation_failed', 'The export could not be generated.');
         }
     }

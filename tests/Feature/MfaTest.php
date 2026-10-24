@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Auth\RavnAppAuthentication;
 use App\Models\AuditLog;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
@@ -227,5 +228,39 @@ class MfaTest extends TestCase
 
         $stored = UserMfaMethod::query()->where('user_id', $user->id)->first()->getRawOriginal('secret');
         $this->assertStringNotContainsString($secret, $stored);
+    }
+
+    public function test_filament_and_api_share_bcrypt_recovery_codes(): void
+    {
+        $user = User::factory()->hrAdmin()->create();
+
+        $secret = app(Google2FA::class)->generateSecretKey();
+        $user->mfaMethods()->create([
+            'type' => 'totp',
+            'secret' => $secret,
+            'confirmed_at' => now(),
+        ]);
+
+        $codes = app(MfaService::class)->generateRecoveryCodes($user);
+
+        $this->assertCount(MfaService::RECOVERY_CODE_COUNT, $codes);
+
+        $hashes = $user->mfaRecoveryCodes()->pluck('code_hash');
+
+        foreach ($codes as $index => $code) {
+            $this->assertStringStartsWith('$2y$', $hashes[$index]);
+            $this->assertTrue(Hash::check($code, $hashes[$index]));
+        }
+
+        $filament = app(RavnAppAuthentication::class);
+
+        $this->assertTrue($filament->verifyRecoveryCode($codes[0], $user));
+        $this->assertFalse($filament->verifyRecoveryCode('NOT-A-REAL-CODE', $user));
+
+        $this->actingAs($user)
+            ->postJson('/api/v1/auth/mfa/verify', ['code' => $codes[1]])
+            ->assertOk();
+
+        $this->assertSame(1, $user->mfaRecoveryCodes()->whereNotNull('used_at')->count());
     }
 }

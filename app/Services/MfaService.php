@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\UserMfaMethod;
 use App\Models\UserMfaRecoveryCode;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -138,11 +139,17 @@ class MfaService
 
     protected function consumeRecoveryCode(User $user, string $code): bool
     {
-        $candidate = UserMfaRecoveryCode::query()
+        $candidates = UserMfaRecoveryCode::query()
             ->where('user_id', $user->id)
             ->whereNull('used_at')
-            ->where('code_hash', $this->hashRecoveryCode($code))
-            ->first();
+            ->get();
+
+        $candidate = $candidates->first(
+            fn (UserMfaRecoveryCode $recoveryCode): bool => Hash::check(
+                mb_strtoupper(trim($code)),
+                $recoveryCode->code_hash,
+            ),
+        );
 
         if ($candidate === null) {
             return false;
@@ -153,8 +160,16 @@ class MfaService
         return true;
     }
 
+    public function reset(User $user): void
+    {
+        DB::transaction(function () use ($user): void {
+            UserMfaRecoveryCode::query()->where('user_id', $user->id)->delete();
+            UserMfaMethod::query()->where('user_id', $user->id)->delete();
+        });
+    }
+
     protected function hashRecoveryCode(string $code): string
     {
-        return hash('sha256', mb_strtoupper(trim($code)));
+        return Hash::make(mb_strtoupper(trim($code)));
     }
 }

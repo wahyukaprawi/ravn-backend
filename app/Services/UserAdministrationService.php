@@ -19,6 +19,7 @@ class UserAdministrationService
     public function __construct(
         private readonly ActivationTokenService $activationTokens,
         private readonly SessionService $sessions,
+        private readonly MfaService $mfa,
         private readonly AuditRecorder $audit,
     ) {}
 
@@ -100,6 +101,7 @@ class UserAdministrationService
             ])->save();
 
             $this->sessions->revokeAll($user);
+            $this->sessions->revokeWebSessions($user);
             $this->activationTokens->invalidateFor($user);
 
             $this->audit->record('user.deactivate', $user, ['status' => User::STATUS_ACTIVE], ['status' => User::STATUS_INACTIVE], $actor);
@@ -168,6 +170,7 @@ class UserAdministrationService
             $user->syncRoles($roles);
 
             $this->sessions->revokeAll($user);
+            $this->sessions->revokeWebSessions($user);
 
             $this->audit->record(
                 'user.assign_roles',
@@ -178,6 +181,31 @@ class UserAdministrationService
             );
 
             return $user->refresh();
+        });
+    }
+
+    public function resetMfa(User $actor, User $user): void
+    {
+        if ($actor->is($user)) {
+            throw ValidationException::withMessages([
+                'user' => 'Use your own profile to replace your authenticator.',
+            ]);
+        }
+
+        DB::transaction(function () use ($actor, $user): void {
+            $before = [
+                'methods' => $user->mfaMethods()->count(),
+                'recovery_code_count' => $user->mfaRecoveryCodes()->whereNull('used_at')->count(),
+            ];
+
+            $this->mfa->reset($user);
+            $this->sessions->revokeAll($user);
+            $this->sessions->revokeWebSessions($user);
+
+            $this->audit->record('user.reset_mfa', $user, $before, [
+                'methods' => 0,
+                'recovery_code_count' => 0,
+            ], $actor);
         });
     }
 

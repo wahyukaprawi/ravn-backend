@@ -95,6 +95,10 @@ class RbacSeeder extends Seeder
         'notifications.retry',
     ];
 
+    public const PROPOSED_PERMISSIONS = [
+        'users.reset_mfa',
+    ];
+
     public const SLICE_01_PERMISSIONS = [
         'users.create',
         'users.view',
@@ -116,7 +120,7 @@ class RbacSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        foreach (array_merge(self::APPROVED_PERMISSIONS, self::OPERATIONAL_PERMISSIONS) as $name) {
+        foreach (array_merge(self::APPROVED_PERMISSIONS, self::OPERATIONAL_PERMISSIONS, self::PROPOSED_PERMISSIONS) as $name) {
             Permission::findOrCreate($name, 'web');
         }
 
@@ -125,7 +129,7 @@ class RbacSeeder extends Seeder
         }
 
         $superAdmin = Role::findByName('super_admin', 'web');
-        $superAdmin->syncPermissions(self::APPROVED_PERMISSIONS);
+        $superAdmin->syncPermissions(array_merge(self::APPROVED_PERMISSIONS, self::PROPOSED_PERMISSIONS));
 
         $hrAdmin = Role::findByName('hr_admin', 'web');
         $hrAdmin->syncPermissions([

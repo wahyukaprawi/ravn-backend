@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AuditLog;
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -138,6 +139,25 @@ class LoginTest extends TestCase
         $this->assertSame($user->email, $response->json('email'));
         $this->assertContains('hr_admin', $response->json('roles'));
         $this->assertContains('users.create', $response->json('permissions'));
+    }
+
+    public function test_authenticated_user_profile_includes_the_linked_employee_id(): void
+    {
+        $user = User::factory()->create();
+
+        $employee = Employee::query()->create([
+            'employee_no' => 'EMP-ME-001',
+            'user_id' => $user->id,
+            'first_name' => 'Synthetic',
+            'last_name' => 'Employee',
+            'work_email' => $user->email,
+            'hire_date' => now()->toDateString(),
+        ]);
+
+        $this->actingAs($user)
+            ->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('employee_id', $employee->id);
     }
 
     public function test_logout_revokes_the_current_token(): void

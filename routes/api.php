@@ -405,6 +405,9 @@ Route::prefix('v1')->group(function (): void {
         Route::post('users/{id}/revoke-sessions', [UserController::class, 'revokeSessions'])
             ->middleware('permission:users.revoke_sessions')
             ->name('api.v1.admin.users.revoke-sessions');
+        Route::post('users/{id}/reset-mfa', [UserController::class, 'resetMfa'])
+            ->middleware(['permission:users.reset_mfa', 'fresh.mfa'])
+            ->name('api.v1.admin.users.reset-mfa');
         Route::post('users/{id}/reissue-invitation', [UserController::class, 'reissueInvitation'])
             ->middleware('permission:users.update')
             ->name('api.v1.admin.users.reissue-invitation');

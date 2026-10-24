@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
+use App\Models\UserMfaRecoveryCode;
 use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
@@ -246,5 +247,78 @@ class AdminUserTest extends TestCase
         $response->assertOk();
         $this->assertSame(2, $response->json('revoked'));
         $this->assertSame(0, PersonalAccessToken::query()->where('tokenable_id', $target->id)->count());
+    }
+
+    public function test_a_super_admin_can_reset_another_users_mfa_with_a_fresh_session(): void
+    {
+        $super = $this->admin('super_admin');
+        $target = User::factory()->create();
+        $target->createToken('target-device');
+
+        $target->mfaMethods()->create([
+            'type' => 'totp',
+            'secret' => app(Google2FA::class)->generateSecretKey(),
+            'confirmed_at' => now(),
+        ]);
+
+        UserMfaRecoveryCode::query()->create([
+            'user_id' => $target->id,
+            'code_hash' => Hash::make('RECOVERY01'),
+            'created_at' => now(),
+        ]);
+
+        $token = $this->enrolAndLogin($super);
+
+        $this->withToken($token)
+            ->postJson("/api/v1/admin/users/{$target->id}/reset-mfa")
+            ->assertOk()
+            ->assertJsonPath('status', 'ok');
+
+        $this->assertSame(0, $target->mfaMethods()->count());
+        $this->assertSame(0, $target->mfaRecoveryCodes()->count());
+        $this->assertSame(0, $target->tokens()->count());
+
+        $log = AuditLog::query()->where('action', 'user.reset_mfa')->latest('id')->first();
+        $this->assertNotNull($log);
+        $this->assertSame($super->id, $log->actor_id);
+        $this->assertSame($target->id, $log->subject_id);
+        $this->assertSame(1, $log->before['methods']);
+        $this->assertSame(1, $log->before['recovery_code_count']);
+        $this->assertSame(0, $log->after['methods']);
+    }
+
+    public function test_mfa_reset_requires_the_dedicated_permission(): void
+    {
+        $hr = $this->admin('hr_admin');
+        $target = User::factory()->create();
+
+        $token = $this->enrolAndLogin($hr);
+
+        $this->withToken($token)
+            ->postJson("/api/v1/admin/users/{$target->id}/reset-mfa")
+            ->assertForbidden();
+    }
+
+    public function test_mfa_reset_requires_a_fresh_mfa_session(): void
+    {
+        $super = $this->admin('super_admin');
+        $target = User::factory()->create();
+
+        $this->actingAs($super)
+            ->postJson("/api/v1/admin/users/{$target->id}/reset-mfa")
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'MFA_REQUIRED');
+    }
+
+    public function test_a_super_admin_cannot_reset_their_own_mfa_through_the_admin_endpoint(): void
+    {
+        $super = $this->admin('super_admin');
+        $this->admin('super_admin');
+
+        $token = $this->enrolAndLogin($super);
+
+        $this->withToken($token)
+            ->postJson("/api/v1/admin/users/{$super->id}/reset-mfa")
+            ->assertStatus(422);
     }
 }

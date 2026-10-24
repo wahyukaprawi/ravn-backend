@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class SessionService
 {
@@ -64,6 +66,15 @@ class SessionService
     public function revokeAll(User $user): int
     {
         return $user->tokens()->delete();
+    }
+
+    public function revokeWebSessions(User $user): void
+    {
+        $table = config('session.table', 'sessions');
+
+        if (Schema::hasTable($table)) {
+            DB::table($table)->where('user_id', $user->getKey())->delete();
+        }
     }
 
     public function revokeCurrent(User $user): void

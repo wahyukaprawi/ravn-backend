@@ -6,6 +6,7 @@ use App\Audit\AuditRecorder;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\ActivationTokenService;
+use App\Services\MfaService;
 use App\Services\SessionService;
 use App\Services\UserAdministrationService;
 use Illuminate\Database\Eloquent\Model;
@@ -37,6 +38,7 @@ class AdminAuditRollbackTest extends TestCase
         $service = new UserAdministrationService(
             app(ActivationTokenService::class),
             app(SessionService::class),
+            app(MfaService::class),
             $recorder,
         );
 

@@ -148,6 +148,19 @@ class UserController extends Controller
         return response()->json(['status' => 'ok', 'activation_token' => $token]);
     }
 
+    public function resetMfa(Request $request, int $id): JsonResponse
+    {
+        $user = User::query()->find($id);
+
+        if ($user === null) {
+            return ApiError::notFound('User not found.')->toResponse($request->header('X-Request-Id'));
+        }
+
+        $this->users->resetMfa($request->user(), $user);
+
+        return response()->json(['status' => 'ok']);
+    }
+
     public function assignRoles(Request $request, int $id): JsonResponse
     {
         $user = User::query()->with('roles')->find($id);

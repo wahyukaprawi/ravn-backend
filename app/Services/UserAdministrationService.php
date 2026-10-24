@@ -4,12 +4,17 @@ namespace App\Services;
 
 use App\Audit\AuditRecorder;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class UserAdministrationService
 {
     public const LAST_SUPER_ADMIN_MESSAGE = 'The last active Super Admin cannot be deactivated or demoted.';
+
+    public const SELF_DEACTIVATION_MESSAGE = 'You cannot deactivate your own account.';
+
+    public const SELF_DEMOTION_MESSAGE = 'You cannot remove your own Super Admin access.';
 
     public function __construct(
         private readonly ActivationTokenService $activationTokens,
@@ -19,14 +24,20 @@ class UserAdministrationService
 
     public function invite(User $actor, array $attributes): array
     {
-        return DB::transaction(function () use ($actor, $attributes) {
-            $user = User::query()->create([
-                'name' => $attributes['name'],
-                'email' => $attributes['email'],
-                'password' => null,
-                'status' => User::STATUS_PENDING_ACTIVATION,
-                'created_by' => $actor->getKey(),
-            ]);
+        $email = mb_strtolower(trim((string) $attributes['email']));
+
+        return DB::transaction(function () use ($actor, $attributes, $email) {
+            try {
+                $user = User::query()->create([
+                    'name' => $attributes['name'],
+                    'email' => $email,
+                    'password' => null,
+                    'status' => User::STATUS_PENDING_ACTIVATION,
+                    'created_by' => $actor->getKey(),
+                ]);
+            } catch (QueryException $exception) {
+                $this->rethrowDuplicateEmail($exception);
+            }
 
             $issued = $this->activationTokens->issue($user);
 
@@ -44,6 +55,10 @@ class UserAdministrationService
 
     public function update(User $actor, User $user, array $attributes): User
     {
+        if (array_key_exists('email', $attributes)) {
+            $attributes['email'] = mb_strtolower(trim((string) $attributes['email']));
+        }
+
         return DB::transaction(function () use ($actor, $user, $attributes) {
             $before = [
                 'name' => $user->name,
@@ -54,7 +69,11 @@ class UserAdministrationService
                 $this->activationTokens->invalidateFor($user);
             }
 
-            $user->fill(array_intersect_key($attributes, array_flip(['name', 'email'])))->save();
+            try {
+                $user->fill(array_intersect_key($attributes, array_flip(['name', 'email'])))->save();
+            } catch (QueryException $exception) {
+                $this->rethrowDuplicateEmail($exception);
+            }
 
             $this->audit->record('user.update', $user, $before, [
                 'name' => $user->name,
@@ -67,6 +86,10 @@ class UserAdministrationService
 
     public function deactivate(User $actor, User $user): User
     {
+        if ($actor->is($user)) {
+            throw ValidationException::withMessages(['user' => self::SELF_DEACTIVATION_MESSAGE]);
+        }
+
         return DB::transaction(function () use ($actor, $user) {
             $this->guardLastSuperAdmin($user);
 
@@ -133,6 +156,10 @@ class UserAdministrationService
     public function assignRoles(User $actor, User $user, array $roles): User
     {
         return DB::transaction(function () use ($actor, $user, $roles) {
+            if ($actor->is($user) && $actor->hasRole('super_admin') && ! in_array('super_admin', $roles, true)) {
+                throw ValidationException::withMessages(['roles' => self::SELF_DEMOTION_MESSAGE]);
+            }
+
             $this->guardSuperAdminGrant($actor, $roles);
             $this->guardLastSuperAdminDemotion($user, $roles);
 
@@ -152,6 +179,21 @@ class UserAdministrationService
 
             return $user->refresh();
         });
+    }
+
+    protected function rethrowDuplicateEmail(QueryException $exception): never
+    {
+        $duplicate = ($exception->errorInfo[1] ?? null) === 1062
+            || str_contains($exception->getMessage(), 'UNIQUE constraint failed: users.email')
+            || str_contains($exception->getMessage(), 'users_email_unique');
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'email' => 'The email has already been taken.',
+            ]);
+        }
+
+        throw $exception;
     }
 
     protected function guardLastSuperAdmin(User $user): void

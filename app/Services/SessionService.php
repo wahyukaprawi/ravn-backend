@@ -12,6 +12,8 @@ class SessionService
 
     public const MFA_FRESHNESS_MINUTES = 5;
 
+    public const MFA_ENROLLMENT_TOKEN_MINUTES = 10;
+
     public function issueToken(User $user, string $deviceLabel, bool $mfaVerified = false): string
     {
         $expiresAt = Carbon::now()->addHours(self::TOKEN_LIFETIME_HOURS);
@@ -23,6 +25,40 @@ class SessionService
         }
 
         return $newToken->plainTextToken;
+    }
+
+    public function issueMfaEnrollmentToken(User $user, string $deviceLabel): array
+    {
+        $expiresAt = Carbon::now()->addMinutes(self::MFA_ENROLLMENT_TOKEN_MINUTES);
+
+        $newToken = $user->createToken($deviceLabel, ['mfa:enroll'], $expiresAt);
+
+        return [
+            'token' => $newToken->plainTextToken,
+            'expires_at' => $expiresAt->toIso8601String(),
+        ];
+    }
+
+    public function completeMfaEnrollment(User $user): array
+    {
+        $current = $user->currentAccessToken();
+
+        if ($current instanceof PersonalAccessToken && ! $current->can('*')) {
+            $deviceLabel = $current->name;
+            $current->delete();
+
+            return [
+                'token' => $this->issueToken($user, $deviceLabel, true),
+                'rotated' => true,
+            ];
+        }
+
+        $this->markMfaVerified($user);
+
+        return [
+            'token' => null,
+            'rotated' => false,
+        ];
     }
 
     public function revokeAll(User $user): int

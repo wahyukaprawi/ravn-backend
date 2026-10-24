@@ -164,6 +164,37 @@ class AdminUserTest extends TestCase
         $this->assertTrue($onlySuper->fresh()->hasRole('super_admin'));
     }
 
+    public function test_a_super_admin_cannot_deactivate_their_own_account_even_with_another_super_admin(): void
+    {
+        $first = $this->admin('super_admin');
+        $second = $this->admin('super_admin');
+
+        $token = $this->enrolAndLogin($first);
+
+        $this->withToken($token)
+            ->postJson("/api/v1/admin/users/{$first->id}/deactivate")
+            ->assertStatus(422)
+            ->assertJsonPath('error.details.user.0', 'You cannot deactivate your own account.');
+
+        $this->assertSame(User::STATUS_ACTIVE, $first->fresh()->status);
+        $this->assertSame(User::STATUS_ACTIVE, $second->fresh()->status);
+    }
+
+    public function test_a_super_admin_cannot_remove_their_own_super_admin_role(): void
+    {
+        $first = $this->admin('super_admin');
+        $this->admin('super_admin');
+
+        $token = $this->enrolAndLogin($first);
+
+        $this->withToken($token)
+            ->putJson("/api/v1/admin/users/{$first->id}/roles", ['roles' => ['manager']])
+            ->assertStatus(422)
+            ->assertJsonPath('error.details.roles.0', 'You cannot remove your own Super Admin access.');
+
+        $this->assertTrue($first->fresh()->hasRole('super_admin'));
+    }
+
     public function test_a_second_super_admin_allows_deactivation_of_the_first(): void
     {
         $first = $this->admin('super_admin');

@@ -50,12 +50,12 @@ class UserController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->normalizeEmail($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')],
         ]);
-
-        $validated['email'] = mb_strtolower(trim($validated['email']));
 
         [$user, $activationToken] = $this->users->invite($request->user(), $validated);
 
@@ -84,14 +84,12 @@ class UserController extends Controller
             return ApiError::notFound('User not found.')->toResponse($request->header('X-Request-Id'));
         }
 
+        $this->normalizeEmail($request);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->getKey())],
         ]);
-
-        if (isset($validated['email'])) {
-            $validated['email'] = mb_strtolower(trim($validated['email']));
-        }
 
         $user = $this->users->update($request->user(), $user, $validated);
 
@@ -166,6 +164,19 @@ class UserController extends Controller
         $user = $this->users->assignRoles($request->user(), $user, $validated['roles']);
 
         return response()->json(['data' => $this->payload($user)]);
+    }
+
+    protected function normalizeEmail(Request $request): void
+    {
+        $email = $request->input('email');
+
+        if (! is_string($email)) {
+            return;
+        }
+
+        $request->merge([
+            'email' => mb_strtolower(trim($email)),
+        ]);
     }
 
     protected function payload(User $user): array

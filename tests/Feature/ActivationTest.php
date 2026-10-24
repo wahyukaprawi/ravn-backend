@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\ActivationTokenService;
+use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
 class ActivationTest extends TestCase
@@ -34,6 +35,86 @@ class ActivationTest extends TestCase
         $user = User::query()->where('email', 'new.hire@example.test')->first();
         $this->assertSame(User::STATUS_ACTIVE, $user->status);
         $this->assertNotNull($user->activated_at);
+    }
+
+    public function test_a_privileged_pending_user_activates_into_mfa_bootstrap_instead_of_a_full_session(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+
+        $plain = $this->actingAs($admin)->postJson('/api/v1/admin/users', [
+            'name' => 'Pending Admin',
+            'email' => 'pending.admin@example.test',
+        ])->json('activation_token');
+
+        $user = User::query()->where('email', 'pending.admin@example.test')->firstOrFail();
+        $user->assignRole('hr_admin');
+        $this->assertTrue($user->fresh()->hasRole('hr_admin'));
+
+        $response = $this->postJson('/api/v1/auth/activate', [
+            'token' => $plain,
+            'password' => 'brand-new-password-123',
+            'password_confirmation' => 'brand-new-password-123',
+            'device_name' => 'phpunit',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('mfa_enrollment_required', true)
+            ->assertJsonPath('user.email', 'pending.admin@example.test');
+
+        $token = $response->json('token');
+        $this->assertNotEmpty($token);
+
+        $this->freshRequest();
+        $this->withToken($token)->getJson('/api/v1/me')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'MFA_REQUIRED');
+
+        $this->withToken($token)->postJson('/api/v1/auth/mfa/enroll')->assertOk();
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'auth.login.mfa_enrollment_required',
+            'subject_id' => $user->id,
+        ]);
+    }
+
+    public function test_a_privileged_pending_user_with_confirmed_mfa_must_log_in_instead_of_receiving_a_token_at_activation(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+
+        $plain = $this->actingAs($admin)->postJson('/api/v1/admin/users', [
+            'name' => 'Enrolled Pending Admin',
+            'email' => 'enrolled.pending@example.test',
+        ])->json('activation_token');
+
+        $user = User::query()->where('email', 'enrolled.pending@example.test')->firstOrFail();
+        $user->assignRole('hr_admin');
+
+        $secret = app(Google2FA::class)->generateSecretKey();
+        $user->mfaMethods()->create([
+            'type' => 'totp',
+            'secret' => $secret,
+            'confirmed_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/activate', [
+            'token' => $plain,
+            'password' => 'brand-new-password-123',
+            'password_confirmation' => 'brand-new-password-123',
+            'device_name' => 'phpunit',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('mfa_required', true)
+            ->assertJsonMissingPath('token');
+
+        $this->freshRequest();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'enrolled.pending@example.test',
+            'password' => 'brand-new-password-123',
+            'code' => app(Google2FA::class)->getCurrentOtp($secret),
+            'device_name' => 'phpunit',
+        ])->assertOk()->assertJsonStructure(['token']);
     }
 
     public function test_an_activation_token_cannot_be_used_twice(): void

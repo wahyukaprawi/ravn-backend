@@ -5,6 +5,7 @@ namespace Tests\Feature\EndToEnd;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\ActivationTokenService;
+use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
@@ -129,5 +130,50 @@ class IdentityReleaseFlowTest extends TestCase
         ] as $action) {
             $this->assertTrue(AuditLog::query()->where('action', $action)->exists(), "Missing audit action {$action}");
         }
+    }
+
+    public function test_e2e_01_unenrolled_admin_bootstraps_mfa_before_receiving_a_full_session(): void
+    {
+        $admin = User::factory()->hrAdmin()->create([
+            'email' => 'bootstrap.release@example.test',
+            'password' => Hash::make('release-admin-password-123'),
+        ]);
+
+        $login = $this->postJson('/api/v1/auth/login', [
+            'email' => 'bootstrap.release@example.test',
+            'password' => 'release-admin-password-123',
+            'device_name' => 'release-e2e-bootstrap',
+        ])->assertOk()->assertJsonPath('mfa_enrollment_required', true);
+
+        $enrollmentToken = $login->json('token');
+        $this->assertNotEmpty($enrollmentToken);
+
+        $this->withToken($enrollmentToken)->getJson('/api/v1/me')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'MFA_REQUIRED');
+
+        $secret = $this->withToken($enrollmentToken)
+            ->postJson('/api/v1/auth/mfa/enroll')
+            ->assertOk()
+            ->json('secret');
+
+        $confirmed = $this->withToken($enrollmentToken)->postJson('/api/v1/auth/mfa/confirm', [
+            'code' => app(Google2FA::class)->getCurrentOtp($secret),
+        ])->assertOk();
+
+        $fullToken = $confirmed->json('token');
+        $this->assertNotEmpty($fullToken);
+        $this->assertCount(8, $confirmed->json('recovery_codes'));
+
+        $this->freshRequest()->withToken($fullToken)->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('email', $admin->email);
+
+        $this->freshRequest()->withToken($enrollmentToken)->getJson('/api/v1/me')->assertUnauthorized();
+
+        $this->assertTrue(
+            AuditLog::query()->where('action', 'auth.login.mfa_enrollment_required')->exists(),
+        );
+        $this->assertTrue(AuditLog::query()->where('action', 'mfa.confirm')->exists());
     }
 }

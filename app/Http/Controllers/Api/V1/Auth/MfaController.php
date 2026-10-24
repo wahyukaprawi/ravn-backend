@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Audit\AuditRecorder;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiError;
+use App\Http\Responses\UserSessionPayload;
 use App\Services\MfaService;
 use App\Services\SessionService;
 use Illuminate\Http\JsonResponse;
@@ -54,14 +55,21 @@ class MfaController extends Controller
                 ->toResponse($request->header('X-Request-Id'));
         }
 
-        $this->sessions->markMfaVerified($user);
+        $completion = $this->sessions->completeMfaEnrollment($user);
 
         $this->audit->record('mfa.confirm', $user, null, null, $user);
 
-        return response()->json([
+        $payload = [
             'status' => 'ok',
             'recovery_codes' => $result['recovery_codes'],
-        ]);
+            'user' => UserSessionPayload::from($user),
+        ];
+
+        if ($completion['token'] !== null) {
+            $payload['token'] = $completion['token'];
+        }
+
+        return response()->json($payload);
     }
 
     public function verify(Request $request): JsonResponse

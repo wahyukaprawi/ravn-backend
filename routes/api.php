@@ -66,33 +66,37 @@ Route::prefix('v1')->group(function (): void {
             Route::prefix('mfa')->group(function (): void {
                 Route::post('enroll', [MfaController::class, 'enroll'])->name('api.v1.auth.mfa.enroll');
                 Route::post('confirm', [MfaController::class, 'confirm'])->name('api.v1.auth.mfa.confirm');
-                Route::post('verify', [MfaController::class, 'verify'])->name('api.v1.auth.mfa.verify');
-                Route::post('step-up', [MfaController::class, 'stepUp'])->name('api.v1.auth.mfa.step-up');
+                Route::post('verify', [MfaController::class, 'verify'])
+                    ->middleware('session.full')
+                    ->name('api.v1.auth.mfa.verify');
+                Route::post('step-up', [MfaController::class, 'stepUp'])
+                    ->middleware('session.full')
+                    ->name('api.v1.auth.mfa.step-up');
             });
         });
     });
 
-    Route::middleware('auth:sanctum')->group(function (): void {
+    Route::middleware(['auth:sanctum', 'session.full'])->group(function (): void {
         Route::get('me', MeController::class)->name('api.v1.me');
 
         Route::get('me/sessions', [SessionController::class, 'index'])->name('api.v1.me.sessions.index');
         Route::delete('me/sessions/{id}', [SessionController::class, 'destroy'])->name('api.v1.me.sessions.destroy');
     });
 
-    Route::prefix('notifications')->middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('notifications')->middleware(['auth:sanctum', 'session.full'])->group(function (): void {
         Route::get('/', [NotificationController::class, 'index'])->name('api.v1.notifications.index');
         Route::post('read-all', [NotificationController::class, 'readAll'])->name('api.v1.notifications.read-all');
         Route::get('{notification}', [NotificationController::class, 'show'])->name('api.v1.notifications.show');
         Route::post('{notification}/read', [NotificationController::class, 'read'])->name('api.v1.notifications.read');
     });
 
-    Route::prefix('devices')->middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('devices')->middleware(['auth:sanctum', 'session.full'])->group(function (): void {
         Route::post('/', [DeviceController::class, 'store'])->name('api.v1.devices.store');
         Route::delete('{device}', [DeviceController::class, 'destroy'])->name('api.v1.devices.destroy');
     });
 
     Route::prefix('announcements')
-        ->middleware(['auth:sanctum', 'permission:announcements.view'])
+        ->middleware(['auth:sanctum', 'session.full', 'permission:announcements.view'])
         ->group(function (): void {
             Route::get('/', [AnnouncementController::class, 'index'])->name('api.v1.announcements.index');
             Route::get('{announcement}', [AnnouncementController::class, 'show'])
@@ -103,7 +107,7 @@ Route::prefix('v1')->group(function (): void {
                 ->name('api.v1.announcements.read');
         });
 
-    Route::prefix('employees')->middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('employees')->middleware(['auth:sanctum', 'session.full'])->group(function (): void {
         Route::get('/', [EmployeeController::class, 'index'])
             ->middleware('permission:employees.view_any')
             ->name('api.v1.employees.index');
@@ -140,20 +144,20 @@ Route::prefix('v1')->group(function (): void {
     });
 
     Route::patch('employments/{employment}', [EmploymentController::class, 'update'])
-        ->middleware(['auth:sanctum', 'permission:employments.update'])
+        ->middleware(['auth:sanctum', 'session.full', 'permission:employments.update'])
         ->name('api.v1.employments.update');
     Route::post('employments/{employment}/terminate', [EmploymentController::class, 'terminate'])
-        ->middleware(['auth:sanctum', 'permission:employments.terminate'])
+        ->middleware(['auth:sanctum', 'session.full', 'permission:employments.terminate'])
         ->name('api.v1.employments.terminate');
 
     Route::patch('assignments/{assignment}', [AssignmentController::class, 'update'])
-        ->middleware(['auth:sanctum', 'permission:assignments.update'])
+        ->middleware(['auth:sanctum', 'session.full', 'permission:assignments.update'])
         ->name('api.v1.assignments.update');
     Route::delete('assignments/{assignment}', [AssignmentController::class, 'destroy'])
-        ->middleware(['auth:sanctum', 'permission:assignments.update'])
+        ->middleware(['auth:sanctum', 'session.full', 'permission:assignments.update'])
         ->name('api.v1.assignments.destroy');
 
-    Route::prefix('attendance')->middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('attendance')->middleware(['auth:sanctum', 'session.full'])->group(function (): void {
         Route::get('status', [AttendanceController::class, 'status'])
             ->name('api.v1.attendance.status');
         Route::get('history', [AttendanceController::class, 'history'])
@@ -197,7 +201,7 @@ Route::prefix('v1')->group(function (): void {
         });
     });
 
-    Route::prefix('reports')->middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('reports')->middleware(['auth:sanctum', 'session.full'])->group(function (): void {
         Route::get('exports', [ReportExportController::class, 'index'])
             ->middleware('permission:reports.view')
             ->name('api.v1.reports.exports.index');
@@ -221,7 +225,7 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.reports.exports.store');
     });
 
-    Route::prefix('leave')->middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('leave')->middleware(['auth:sanctum', 'session.full'])->group(function (): void {
         Route::get('types', [LeaveTypeController::class, 'index'])
             ->middleware('permission:leave_policies.view')
             ->name('api.v1.leave.types.index');
@@ -257,7 +261,7 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.leave.cancellations.decide');
     });
 
-    Route::prefix('admin')->middleware('auth:sanctum')->group(function (): void {
+    Route::prefix('admin')->middleware(['auth:sanctum', 'session.full'])->group(function (): void {
         Route::prefix('departments')->group(function (): void {
             Route::get('/', [DepartmentController::class, 'index'])
                 ->middleware('permission:departments.view_any')

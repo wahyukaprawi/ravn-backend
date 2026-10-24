@@ -3,6 +3,7 @@
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\Idempotency;
 use App\Http\Middleware\RequireFreshMfa;
+use App\Http\Middleware\RequireFullSession;
 use App\Http\Responses\ApiError;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -33,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'fresh.mfa' => RequireFreshMfa::class,
+            'session.full' => RequireFullSession::class,
             'permission' => PermissionMiddleware::class,
             'role' => RoleMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

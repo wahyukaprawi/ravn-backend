@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\AuditLog;
+use App\Models\PersonalAccessToken;
 use App\Models\User;
 use App\Models\UserMfaMethod;
 use App\Services\MfaService;
+use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
@@ -114,6 +116,84 @@ class MfaTest extends TestCase
         ]);
         $withCode->assertOk();
         $this->assertNotEmpty($withCode->json('token'));
+    }
+
+    public function test_unenrolled_admin_can_bootstrap_mfa_and_rotate_to_a_full_session(): void
+    {
+        $user = User::factory()->hrAdmin()->create([
+            'email' => 'bootstrap.admin@example.test',
+            'password' => Hash::make('correct-password'),
+        ]);
+
+        $login = $this->postJson('/api/v1/auth/login', [
+            'email' => 'bootstrap.admin@example.test',
+            'password' => 'correct-password',
+            'device_name' => 'phpunit',
+        ]);
+
+        $login->assertOk()
+            ->assertJsonPath('mfa_enrollment_required', true)
+            ->assertJsonPath('user.email', 'bootstrap.admin@example.test');
+
+        $enrollmentToken = $login->json('token');
+        $this->assertNotEmpty($enrollmentToken);
+
+        $this->withToken($enrollmentToken)->getJson('/api/v1/me')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'MFA_REQUIRED');
+
+        $this->withToken($enrollmentToken)->postJson('/api/v1/auth/mfa/verify', ['code' => '123456'])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'MFA_REQUIRED');
+
+        $secret = $this->withToken($enrollmentToken)
+            ->postJson('/api/v1/auth/mfa/enroll')
+            ->assertOk()
+            ->json('secret');
+
+        $confirm = $this->withToken($enrollmentToken)->postJson('/api/v1/auth/mfa/confirm', [
+            'code' => $this->codeFor($secret),
+        ]);
+
+        $confirm->assertOk()
+            ->assertJsonPath('user.email', 'bootstrap.admin@example.test');
+
+        $this->assertCount(MfaService::RECOVERY_CODE_COUNT, $confirm->json('recovery_codes'));
+
+        $fullToken = $confirm->json('token');
+        $this->assertNotEmpty($fullToken);
+
+        $this->freshRequest();
+        $this->withToken($fullToken)->getJson('/api/v1/me')->assertOk();
+
+        $this->freshRequest();
+        $this->withToken($enrollmentToken)->getJson('/api/v1/me')->assertUnauthorized();
+
+        $fullTokenRecord = PersonalAccessToken::query()
+            ->where('tokenable_id', $user->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($fullTokenRecord?->mfa_verified_at);
+    }
+
+    public function test_mfa_enrollment_token_expires_after_the_bootstrap_window(): void
+    {
+        $user = User::factory()->superAdmin()->create([
+            'email' => 'expiring.admin@example.test',
+            'password' => Hash::make('correct-password'),
+        ]);
+
+        $token = $this->postJson('/api/v1/auth/login', [
+            'email' => 'expiring.admin@example.test',
+            'password' => 'correct-password',
+            'device_name' => 'phpunit',
+        ])->json('token');
+
+        $this->travel(11)->minutes();
+
+        $this->freshRequest();
+        $this->withToken($token)->postJson('/api/v1/auth/mfa/enroll')->assertUnauthorized();
     }
 
     public function test_sensitive_admin_action_requires_fresh_mfa(): void

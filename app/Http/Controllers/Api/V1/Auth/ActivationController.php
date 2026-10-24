@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Audit\AuditRecorder;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiError;
+use App\Http\Responses\UserSessionPayload;
 use App\Models\User;
 use App\Services\ActivationTokenService;
+use App\Services\AuthenticationService;
 use App\Services\SessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +20,7 @@ class ActivationController extends Controller
     public function __construct(
         private readonly ActivationTokenService $tokens,
         private readonly SessionService $sessions,
+        private readonly AuthenticationService $auth,
         private readonly AuditRecorder $audit,
     ) {}
 
@@ -48,7 +51,7 @@ class ActivationController extends Controller
                 ->toResponse($request->header('X-Request-Id'));
         }
 
-        $token = DB::transaction(function () use ($user, $activation, $validated) {
+        $result = DB::transaction(function () use ($user, $activation, $validated) {
             $user->forceFill([
                 'password' => $validated['password'],
                 'status' => User::STATUS_ACTIVE,
@@ -65,18 +68,44 @@ class ActivationController extends Controller
                 $user,
             );
 
-            return $this->sessions->issueToken($user, $validated['device_name']);
+            if ($this->auth->mfaEnrollmentRequired($user)) {
+                $enrollment = $this->sessions->issueMfaEnrollmentToken($user, $validated['device_name']);
+
+                $this->audit->record(
+                    'auth.login.mfa_enrollment_required',
+                    $user,
+                    null,
+                    ['device_name' => $validated['device_name']],
+                    $user,
+                );
+
+                return [
+                    'mfa_enrollment_required' => true,
+                    'token' => $enrollment['token'],
+                    'expires_at' => $enrollment['expires_at'],
+                    'user' => UserSessionPayload::from($user),
+                ];
+            }
+
+            if ($this->auth->mfaRequired($user)) {
+                return [
+                    'mfa_required' => true,
+                    'user' => UserSessionPayload::from($user),
+                ];
+            }
+
+            return [
+                'token' => $this->sessions->issueToken($user, $validated['device_name']),
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'status' => $user->fresh()->status,
+                ],
+            ];
         });
 
-        return response()->json([
-            'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'status' => $user->fresh()->status,
-            ],
-        ]);
+        return response()->json($result);
     }
 
     public function resend(Request $request): JsonResponse

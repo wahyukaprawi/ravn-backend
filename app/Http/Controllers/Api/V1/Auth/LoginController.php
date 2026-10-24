@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Audit\AuditRecorder;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiError;
+use App\Http\Responses\UserSessionPayload;
 use App\Services\AuthenticationService;
 use App\Services\MfaService;
 use App\Services\SessionService;
@@ -45,7 +46,22 @@ class LoginController extends Controller
         }
 
         if ($this->auth->mfaEnrollmentRequired($user)) {
-            return ApiError::mfaRequired()->toResponse($request->header('X-Request-Id'));
+            $enrollment = $this->sessions->issueMfaEnrollmentToken($user, $validated['device_name']);
+
+            $this->audit->record(
+                'auth.login.mfa_enrollment_required',
+                $user,
+                null,
+                ['device_name' => $validated['device_name']],
+                $user,
+            );
+
+            return response()->json([
+                'mfa_enrollment_required' => true,
+                'token' => $enrollment['token'],
+                'expires_at' => $enrollment['expires_at'],
+                'user' => UserSessionPayload::from($user),
+            ]);
         }
 
         $requiresMfa = $this->auth->mfaRequired($user);
@@ -68,19 +84,7 @@ class LoginController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user' => $this->userPayload($user),
+            'user' => UserSessionPayload::from($user),
         ]);
-    }
-
-    protected function userPayload($user): array
-    {
-        return [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'status' => $user->status,
-            'roles' => $user->getRoleNames()->values()->all(),
-            'permissions' => $user->getAllPermissions()->pluck('name')->values()->all(),
-        ];
     }
 }

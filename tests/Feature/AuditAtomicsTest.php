@@ -54,6 +54,8 @@ class AuditAtomicsTest extends TestCase
             'email' => 'person@example.test',
             'password' => 'super-secret-value',
             'mfa_secret' => 'JBSWY3DPEHPK3PXP',
+            'mfa_code' => '123456',
+            'recovery_code' => 'ABCDE-FGHIJ',
         ], $user);
 
         $fresh = $log->fresh();
@@ -61,9 +63,13 @@ class AuditAtomicsTest extends TestCase
         $this->assertSame('person@example.test', $fresh->after['email']);
         $this->assertSame(AuditRecorder::REDACTED, $fresh->after['password']);
         $this->assertSame(AuditRecorder::REDACTED, $fresh->after['mfa_secret']);
+        $this->assertSame(AuditRecorder::REDACTED, $fresh->after['mfa_code']);
+        $this->assertSame(AuditRecorder::REDACTED, $fresh->after['recovery_code']);
 
         $this->assertStringNotContainsString('super-secret-value', json_encode($fresh->after));
         $this->assertStringNotContainsString('JBSWY3DPEHPK3PXP', json_encode($fresh->after));
+        $this->assertStringNotContainsString('123456', json_encode($fresh->after));
+        $this->assertStringNotContainsString('ABCDE-FGHIJ', json_encode($fresh->after));
     }
 
     public function test_audit_table_has_no_update_or_delete_path_in_the_model(): void

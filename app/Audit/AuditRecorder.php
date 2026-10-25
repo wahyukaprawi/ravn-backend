@@ -23,8 +23,12 @@ class AuditRecorder
         'remember_token',
         'secret',
         'mfa_secret',
+        'mfa_code',
+        'recovery_code',
         'recovery_codes',
         'code',
+        'otp',
+        'totp',
         'authorization',
     ];
 

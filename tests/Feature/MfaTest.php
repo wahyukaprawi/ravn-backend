@@ -79,6 +79,26 @@ class MfaTest extends TestCase
         $this->actingAs($user)->postJson('/api/v1/auth/mfa/verify', ['code' => $next])->assertOk();
     }
 
+    public function test_mfa_step_up_is_rate_limited_after_repeated_invalid_codes(): void
+    {
+        $user = User::factory()->hrAdmin()->create();
+
+        $secret = $this->actingAs($user)->postJson('/api/v1/auth/mfa/enroll')->json('secret');
+        $this->actingAs($user)->postJson('/api/v1/auth/mfa/confirm', [
+            'code' => $this->codeFor($secret),
+        ])->assertOk();
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->actingAs($user)
+                ->postJson('/api/v1/auth/mfa/step-up', ['code' => 'not-a-code'])
+                ->assertStatus(422);
+        }
+
+        $this->actingAs($user)
+            ->postJson('/api/v1/auth/mfa/step-up', ['code' => $this->codeFor($secret)])
+            ->assertStatus(429);
+    }
+
     public function test_recovery_codes_are_single_use(): void
     {
         $user = User::factory()->hrAdmin()->create();

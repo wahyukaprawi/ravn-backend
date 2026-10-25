@@ -6,6 +6,7 @@ use App\Audit\AuditRecorder;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 class FilamentStepUpService
@@ -13,6 +14,10 @@ class FilamentStepUpService
     public const FRESHNESS_MINUTES = 5;
 
     public const SESSION_KEY = 'filament.mfa_step_up';
+
+    public const RATE_LIMIT_ATTEMPTS = 5;
+
+    public const RATE_LIMIT_DECAY_SECONDS = 60;
 
     public function __construct(
         private readonly MfaService $mfa,
@@ -68,11 +73,26 @@ class FilamentStepUpService
             throw $this->invalidCode($errorKey);
         }
 
+        $rateLimitKey = 'filament-mfa-step-up:'.$user->getKey();
+
+        if (RateLimiter::tooManyAttempts($rateLimitKey, self::RATE_LIMIT_ATTEMPTS)) {
+            $this->audit->record('mfa.step_up', $user, null, [
+                'surface' => 'filament',
+                'reason' => 'rate_limited',
+            ], $user, 'failure');
+
+            throw $this->rateLimited($errorKey);
+        }
+
         if (! $this->mfa->verify($user, trim($code))) {
+            RateLimiter::hit($rateLimitKey, self::RATE_LIMIT_DECAY_SECONDS);
+
             $this->audit->record('mfa.step_up', $user, null, ['surface' => 'filament'], $user, 'failure');
 
             throw $this->invalidCode($errorKey);
         }
+
+        RateLimiter::clear($rateLimitKey);
 
         $this->audit->record('mfa.step_up', $user, null, ['surface' => 'filament'], $user);
 
@@ -93,6 +113,13 @@ class FilamentStepUpService
     {
         return ValidationException::withMessages([
             $errorKey => 'Enter a valid authenticator or recovery code.',
+        ]);
+    }
+
+    protected function rateLimited(string $errorKey): ValidationException
+    {
+        return ValidationException::withMessages([
+            $errorKey => 'Too many attempts. Try again in a minute.',
         ]);
     }
 }

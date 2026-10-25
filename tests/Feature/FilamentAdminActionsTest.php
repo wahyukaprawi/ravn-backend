@@ -32,6 +32,7 @@ use App\Services\FilamentStepUpService;
 use App\Services\LeaveService;
 use Database\Seeders\DemoSeeder;
 use Filament\Facades\Filament;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PragmaRX\Google2FA\Google2FA;
 use Spatie\Permission\Models\Role;
@@ -467,6 +468,24 @@ class FilamentAdminActionsTest extends TestCase
 
         $this->assertSame('filament', $log->after['surface']);
         $this->assertStringNotContainsString($code, json_encode([$log->before, $log->after]));
+    }
+
+    public function test_step_up_is_rate_limited_after_repeated_invalid_codes(): void
+    {
+        $this->enrollAdminMfa();
+
+        $service = app(FilamentStepUpService::class);
+
+        for ($attempt = 0; $attempt < FilamentStepUpService::RATE_LIMIT_ATTEMPTS; $attempt++) {
+            try {
+                $service->verifyCurrentUserOrFail('not-a-code');
+            } catch (ValidationException) {
+            }
+        }
+
+        $this->expectException(ValidationException::class);
+
+        $service->verifyCurrentUserOrFail($this->mfaCode());
     }
 
     public function test_step_up_is_reused_within_the_freshness_window(): void

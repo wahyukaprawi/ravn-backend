@@ -85,6 +85,11 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(5)->by($this->throttleKey($request)),
             Limit::perMinute(20)->by((string) $request->ip()),
         ]);
+
+        RateLimiter::for('mfa', fn (Request $request) => [
+            Limit::perMinute(5)->by(($request->user()?->getAuthIdentifier() ?? 'guest').'|'.$request->ip()),
+            Limit::perMinute(20)->by((string) $request->ip()),
+        ]);
     }
 
     protected function throttleKey(Request $request): string

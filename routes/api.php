@@ -67,10 +67,10 @@ Route::prefix('v1')->group(function (): void {
                 Route::post('enroll', [MfaController::class, 'enroll'])->name('api.v1.auth.mfa.enroll');
                 Route::post('confirm', [MfaController::class, 'confirm'])->name('api.v1.auth.mfa.confirm');
                 Route::post('verify', [MfaController::class, 'verify'])
-                    ->middleware('session.full')
+                    ->middleware(['session.full', 'throttle:mfa'])
                     ->name('api.v1.auth.mfa.verify');
                 Route::post('step-up', [MfaController::class, 'stepUp'])
-                    ->middleware('session.full')
+                    ->middleware(['session.full', 'throttle:mfa'])
                     ->name('api.v1.auth.mfa.step-up');
             });
         });

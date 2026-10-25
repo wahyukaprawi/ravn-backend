@@ -2,6 +2,7 @@
 
 namespace App\Filament\Auth;
 
+use App\Services\FilamentStepUpService;
 use App\Services\MfaService;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
@@ -24,6 +25,12 @@ class RavnAppAuthentication extends AppAuthentication
             return $this->google2FA->verifyKey($secret, $code, $this->getCodeWindow());
         }
 
-        return app(MfaService::class)->verify($user, $code);
+        $verified = app(MfaService::class)->verify($user, $code);
+
+        if ($verified) {
+            app(FilamentStepUpService::class)->markFresh($user);
+        }
+
+        return $verified;
     }
 }

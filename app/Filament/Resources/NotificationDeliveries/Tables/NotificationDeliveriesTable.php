@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\NotificationDeliveries\Tables;
 
 use App\Audit\AuditRecorder;
+use App\Filament\Actions\SensitiveAction;
 use App\Models\NotificationDelivery;
 use App\Notifications\NotificationDeliveryService;
-use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
@@ -55,13 +55,13 @@ class NotificationDeliveriesTable
             ])
             ->recordActions([
                 ViewAction::make(),
-                Action::make('retry')
+                SensitiveAction::make('retry')
                     ->label('Retry')
                     ->icon('heroicon-o-arrow-path')
                     ->color('warning')
                     ->requiresConfirmation()
                     ->visible(fn (NotificationDelivery $record): bool => $record->isRetryable() && auth()->user()?->can('notifications.retry'))
-                    ->action(function (NotificationDelivery $record): void {
+                    ->sensitiveAction(function (NotificationDelivery $record): void {
                         if (! app(NotificationDeliveryService::class)->retry($record)) {
                             Notification::make()
                                 ->danger()

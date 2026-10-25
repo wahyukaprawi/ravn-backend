@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Roles\Pages;
 
 use App\Audit\AuditRecorder;
 use App\Filament\Resources\Roles\RoleResource;
+use App\Services\FilamentStepUpService;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Permission\Models\Role;
@@ -24,6 +25,8 @@ class EditRole extends EditRecord
 
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
+        app(FilamentStepUpService::class)->verifyCurrentUserOrFail($data['mfa_code'] ?? null, 'data.mfa_code');
+
         $before = $record->permissions()->pluck('name')->sort()->values()->all();
 
         $record->syncPermissions($data['permissions'] ?? []);

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Auth\RavnAppAuthentication;
 use App\Filament\Resources\Announcements\Pages\CreateAnnouncement;
 use App\Filament\Resources\Announcements\Pages\ListAnnouncements;
 use App\Filament\Resources\Departments\Pages\CreateDepartment;
@@ -17,6 +18,7 @@ use App\Filament\Resources\Users\Pages\ListUsers;
 use App\Filament\Resources\WorkCalendars\Pages\CreateWorkCalendar;
 use App\Models\Announcement;
 use App\Models\AnnouncementAudience;
+use App\Models\AuditLog;
 use App\Models\LeaveBalance;
 use App\Models\LeavePolicy;
 use App\Models\LeaveRequest;
@@ -26,6 +28,7 @@ use App\Models\User;
 use App\Models\WorkCalendar;
 use App\Models\WorkLocation;
 use App\Services\AnnouncementService;
+use App\Services\FilamentStepUpService;
 use App\Services\LeaveService;
 use Database\Seeders\DemoSeeder;
 use Filament\Facades\Filament;
@@ -36,6 +39,8 @@ use Tests\TestCase;
 
 class FilamentAdminActionsTest extends TestCase
 {
+    protected string $mfaSecret;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -46,6 +51,35 @@ class FilamentAdminActionsTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
 
+    protected function enrollAdminMfa(): void
+    {
+        $this->mfaSecret = app(Google2FA::class)->generateSecretKey();
+
+        auth()->user()->mfaMethods()->create([
+            'type' => 'totp',
+            'secret' => $this->mfaSecret,
+            'confirmed_at' => now(),
+        ]);
+    }
+
+    protected function mfaCode(): string
+    {
+        return app(Google2FA::class)->getCurrentOtp($this->mfaSecret);
+    }
+
+    protected function userWithMfa(): User
+    {
+        $user = User::factory()->create();
+
+        $user->mfaMethods()->create([
+            'type' => 'totp',
+            'secret' => app(Google2FA::class)->generateSecretKey(),
+            'confirmed_at' => now(),
+        ]);
+
+        return $user;
+    }
+
     public function test_department_creation_uses_the_domain_service(): void
     {
         Livewire::test(CreateDepartment::class)
@@ -53,6 +87,10 @@ class FilamentAdminActionsTest extends TestCase
                 'code' => 'OPS',
                 'name' => 'Operations',
                 'description' => 'Synthetic operations department',
+            ])
+            ->assertFormSet([
+                'code' => 'OPS',
+                'name' => 'Operations',
             ])
             ->call('create')
             ->assertHasNoFormErrors();
@@ -244,6 +282,8 @@ class FilamentAdminActionsTest extends TestCase
 
     public function test_leave_balance_can_be_adjusted_from_the_admin_table(): void
     {
+        $this->enrollAdminMfa();
+
         $employee = User::query()->where('email', 'employee@ravn.test')->firstOrFail();
         $balance = LeaveBalance::query()
             ->where('user_id', $employee->id)
@@ -256,6 +296,7 @@ class FilamentAdminActionsTest extends TestCase
             ->callTableAction('adjust', $balance, data: [
                 'amount' => 2,
                 'reason' => 'Synthetic adjustment test',
+                'mfa_code' => $this->mfaCode(),
             ])
             ->assertHasNoErrors();
 
@@ -264,6 +305,8 @@ class FilamentAdminActionsTest extends TestCase
 
     public function test_announcement_can_be_published_from_the_admin_table(): void
     {
+        $this->enrollAdminMfa();
+
         $admin = User::query()->where('email', 'superadmin@ravn.test')->firstOrFail();
 
         $announcement = app(AnnouncementService::class)->create($admin, [
@@ -275,7 +318,9 @@ class FilamentAdminActionsTest extends TestCase
         ]);
 
         Livewire::test(ListAnnouncements::class)
-            ->callTableAction('publish', $announcement)
+            ->callTableAction('publish', $announcement, data: [
+                'mfa_code' => $this->mfaCode(),
+            ])
             ->assertHasNoErrors();
 
         $this->assertSame(Announcement::STATUS_PUBLISHED, $announcement->fresh()->status);
@@ -283,11 +328,14 @@ class FilamentAdminActionsTest extends TestCase
 
     public function test_user_roles_can_be_assigned_from_the_admin_table(): void
     {
+        $this->enrollAdminMfa();
+
         $target = User::factory()->create();
 
         Livewire::test(ListUsers::class)
             ->callTableAction('assignRoles', $target, data: [
                 'roles' => ['manager'],
+                'mfa_code' => $this->mfaCode(),
             ])
             ->assertHasNoErrors();
 
@@ -296,6 +344,48 @@ class FilamentAdminActionsTest extends TestCase
 
     public function test_mfa_can_be_reset_from_the_admin_table(): void
     {
+        $this->enrollAdminMfa();
+
+        $target = User::factory()->create();
+        $target->mfaMethods()->create([
+            'type' => 'totp',
+            'secret' => app(Google2FA::class)->generateSecretKey(),
+            'confirmed_at' => now(),
+        ]);
+
+        Livewire::test(ListUsers::class)
+            ->callTableAction('resetMfa', $target, data: [
+                'mfa_code' => $this->mfaCode(),
+            ])
+            ->assertHasNoErrors();
+
+        $this->assertSame(0, $target->fresh()->mfaMethods()->count());
+    }
+
+    public function test_role_permissions_can_be_updated_from_the_edit_form(): void
+    {
+        $this->enrollAdminMfa();
+
+        $role = Role::query()->where('name', 'hr_admin')->firstOrFail();
+
+        Livewire::test(EditRole::class, ['record' => $role->getRouteKey()])
+            ->fillForm([
+                'permissions' => ['users.view', 'employees.view_any'],
+                'mfa_code' => $this->mfaCode(),
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(
+            ['employees.view_any', 'users.view'],
+            $role->fresh()->permissions()->orderBy('name')->pluck('name')->all(),
+        );
+    }
+
+    public function test_sensitive_action_requires_an_authenticator_code(): void
+    {
+        $this->enrollAdminMfa();
+
         $target = User::factory()->create();
         $target->mfaMethods()->create([
             'type' => 'totp',
@@ -305,25 +395,161 @@ class FilamentAdminActionsTest extends TestCase
 
         Livewire::test(ListUsers::class)
             ->callTableAction('resetMfa', $target)
-            ->assertHasNoErrors();
+            ->assertHasFormErrors(['mfa_code']);
 
-        $this->assertSame(0, $target->fresh()->mfaMethods()->count());
+        $this->assertSame(1, $target->fresh()->mfaMethods()->count());
     }
 
-    public function test_role_permissions_can_be_updated_from_the_edit_form(): void
+    public function test_sensitive_action_rejects_an_invalid_authenticator_code(): void
     {
+        $this->enrollAdminMfa();
+
+        $target = User::factory()->create();
+        $target->mfaMethods()->create([
+            'type' => 'totp',
+            'secret' => app(Google2FA::class)->generateSecretKey(),
+            'confirmed_at' => now(),
+        ]);
+
+        Livewire::test(ListUsers::class)
+            ->callTableAction('resetMfa', $target, data: [
+                'mfa_code' => '000000',
+            ])
+            ->assertHasFormErrors(['mfa_code']);
+
+        $this->assertSame(1, $target->fresh()->mfaMethods()->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'mfa.step_up',
+            'outcome' => AuditLog::OUTCOME_FAILURE,
+        ]);
+    }
+
+    public function test_role_permission_changes_require_an_authenticator_code(): void
+    {
+        $this->enrollAdminMfa();
+
         $role = Role::query()->where('name', 'hr_admin')->firstOrFail();
+        $before = $role->permissions()->orderBy('name')->pluck('name')->all();
 
         Livewire::test(EditRole::class, ['record' => $role->getRouteKey()])
             ->fillForm([
-                'permissions' => ['users.view', 'employees.view_any'],
+                'permissions' => ['users.view'],
             ])
             ->call('save')
-            ->assertHasNoFormErrors();
+            ->assertHasFormErrors(['mfa_code']);
 
         $this->assertSame(
-            ['employees.view_any', 'users.view'],
+            $before,
             $role->fresh()->permissions()->orderBy('name')->pluck('name')->all(),
         );
+    }
+
+    public function test_step_up_audit_does_not_store_the_authenticator_code(): void
+    {
+        $this->enrollAdminMfa();
+
+        $target = User::factory()->create();
+        $target->mfaMethods()->create([
+            'type' => 'totp',
+            'secret' => app(Google2FA::class)->generateSecretKey(),
+            'confirmed_at' => now(),
+        ]);
+
+        $code = $this->mfaCode();
+
+        Livewire::test(ListUsers::class)
+            ->callTableAction('resetMfa', $target, data: [
+                'mfa_code' => $code,
+            ])
+            ->assertHasNoErrors();
+
+        $log = AuditLog::query()->where('action', 'mfa.step_up')->latest('id')->firstOrFail();
+
+        $this->assertSame('filament', $log->after['surface']);
+        $this->assertStringNotContainsString($code, json_encode([$log->before, $log->after]));
+    }
+
+    public function test_step_up_is_reused_within_the_freshness_window(): void
+    {
+        $this->enrollAdminMfa();
+
+        $first = $this->userWithMfa();
+        $second = $this->userWithMfa();
+
+        $component = Livewire::test(ListUsers::class);
+
+        $component
+            ->callTableAction('resetMfa', $first, data: [
+                'mfa_code' => $this->mfaCode(),
+            ])
+            ->assertHasNoErrors();
+
+        $component
+            ->callTableAction('resetMfa', $second)
+            ->assertHasNoErrors();
+
+        $this->assertSame(0, $first->fresh()->mfaMethods()->count());
+        $this->assertSame(0, $second->fresh()->mfaMethods()->count());
+    }
+
+    public function test_step_up_expires_after_the_freshness_window(): void
+    {
+        $this->enrollAdminMfa();
+
+        $first = $this->userWithMfa();
+        $second = $this->userWithMfa();
+
+        $component = Livewire::test(ListUsers::class);
+
+        $component
+            ->callTableAction('resetMfa', $first, data: [
+                'mfa_code' => $this->mfaCode(),
+            ])
+            ->assertHasNoErrors();
+
+        $this->travel(6)->minutes();
+
+        $component
+            ->callTableAction('resetMfa', $second)
+            ->assertHasFormErrors(['mfa_code']);
+
+        $this->assertSame(1, $second->fresh()->mfaMethods()->count());
+    }
+
+    public function test_role_permission_changes_reject_an_invalid_authenticator_code(): void
+    {
+        $this->enrollAdminMfa();
+
+        $role = Role::query()->where('name', 'hr_admin')->firstOrFail();
+        $before = $role->permissions()->orderBy('name')->pluck('name')->all();
+
+        Livewire::test(EditRole::class, ['record' => $role->getRouteKey()])
+            ->fillForm([
+                'permissions' => ['users.view'],
+                'mfa_code' => '000000',
+            ])
+            ->call('save')
+            ->assertHasFormErrors(['mfa_code']);
+
+        $this->assertSame(
+            $before,
+            $role->fresh()->permissions()->orderBy('name')->pluck('name')->all(),
+        );
+    }
+
+    public function test_panel_mfa_verification_starts_the_freshness_window(): void
+    {
+        $this->enrollAdminMfa();
+
+        $target = $this->userWithMfa();
+
+        $this->assertTrue(app(RavnAppAuthentication::class)->verifyCode($this->mfaCode()));
+        $this->assertTrue(app(FilamentStepUpService::class)->isFresh(auth()->user()));
+
+        Livewire::test(ListUsers::class)
+            ->callTableAction('resetMfa', $target)
+            ->assertHasNoErrors();
+
+        $this->assertSame(0, $target->fresh()->mfaMethods()->count());
     }
 }

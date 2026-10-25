@@ -3,10 +3,10 @@
 namespace App\Filament\Resources\LeaveBalances\Tables;
 
 use App\Audit\AuditRecorder;
+use App\Filament\Actions\SensitiveAction;
 use App\Models\LeaveBalance;
 use App\Models\LeaveType;
 use App\Services\LeaveBalanceService;
-use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -48,7 +48,7 @@ class LeaveBalancesTable
                         ->all()),
             ])
             ->recordActions([
-                Action::make('adjust')
+                SensitiveAction::make('adjust')
                     ->label('Adjust')
                     ->icon('heroicon-o-adjustments-horizontal')
                     ->schema([
@@ -62,7 +62,7 @@ class LeaveBalancesTable
                             ->required()
                             ->maxLength(500),
                     ])
-                    ->action(function (LeaveBalance $record, array $data): void {
+                    ->sensitiveAction(function (LeaveBalance $record, array $data): void {
                         try {
                             $before = $record->fresh();
                             $balance = app(LeaveBalanceService::class)->adjust(

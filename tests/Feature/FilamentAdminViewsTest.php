@@ -3,12 +3,18 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\Announcements\Pages\ViewAnnouncement;
+use App\Filament\Resources\AttendanceCorrections\Pages\ListAttendanceCorrections;
 use App\Filament\Resources\AttendanceCorrections\Pages\ViewAttendanceCorrection;
+use App\Filament\Resources\AttendanceSessions\Pages\ListAttendanceSessions;
 use App\Filament\Resources\AttendanceSessions\Pages\ViewAttendanceSession;
+use App\Filament\Resources\AuditLogs\Pages\ListAuditLogs;
 use App\Filament\Resources\AuditLogs\Pages\ViewAuditLog;
 use App\Filament\Resources\Employees\Pages\ViewEmployee;
+use App\Filament\Resources\LeaveBalances\Pages\ListLeaveBalances;
 use App\Filament\Resources\LeaveRequests\Pages\ViewLeaveRequest;
+use App\Filament\Resources\NotificationDeliveries\Pages\ListNotificationDeliveries;
 use App\Filament\Resources\NotificationDeliveries\Pages\ViewNotificationDelivery;
+use App\Filament\Resources\ReportExports\Pages\ListReportExports;
 use App\Filament\Resources\ReportExports\Pages\ViewReportExport;
 use App\Filament\Resources\Roles\Pages\ViewRole;
 use App\Filament\Resources\Users\Pages\ViewUser;
@@ -126,10 +132,43 @@ class FilamentAdminViewsTest extends TestCase
             Livewire::test($page, ['record' => $record->getRouteKey()])->assertStatus(200);
         }
 
+        $readOnlyViews = [
+            [ViewAttendanceCorrection::class, $correction],
+            [ViewAttendanceSession::class, $session],
+            [ViewAuditLog::class, $audit],
+            [ViewReportExport::class, $export],
+        ];
+
+        foreach ($readOnlyViews as [$page, $record]) {
+            Livewire::test($page, ['record' => $record->getRouteKey()])
+                ->assertStatus(200)
+                ->assertActionDoesNotExist('edit');
+        }
+
+        $readOnlyLists = [
+            ListAttendanceCorrections::class,
+            ListAttendanceSessions::class,
+            ListAuditLogs::class,
+            ListLeaveBalances::class,
+            ListReportExports::class,
+        ];
+
+        foreach ($readOnlyLists as $page) {
+            Livewire::test($page)
+                ->assertStatus(200)
+                ->assertActionDoesNotExist('create');
+        }
+
         $operator = User::factory()->create();
         $operator->givePermissionTo(['notifications.view_failures', 'notifications.retry']);
         $this->actingAs($operator);
 
-        Livewire::test(ViewNotificationDelivery::class, ['record' => $delivery->getRouteKey()])->assertStatus(200);
+        Livewire::test(ListNotificationDeliveries::class)
+            ->assertStatus(200)
+            ->assertActionDoesNotExist('create');
+
+        Livewire::test(ViewNotificationDelivery::class, ['record' => $delivery->getRouteKey()])
+            ->assertStatus(200)
+            ->assertActionDoesNotExist('edit');
     }
 }

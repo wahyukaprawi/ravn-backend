@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use App\Filament\Actions\SensitiveAction;
 use App\Models\User;
 use App\Services\MfaService;
 use App\Services\UserAdministrationService;
-use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\CheckboxList;
@@ -53,7 +53,7 @@ class UsersTable
                 ViewAction::make(),
                 EditAction::make()
                     ->visible(fn (): bool => auth()->user()?->can('users.update')),
-                Action::make('assignRoles')
+                SensitiveAction::make('assignRoles')
                     ->label('Roles')
                     ->icon('heroicon-o-key')
                     ->visible(fn (): bool => auth()->user()?->can('users.assign_roles'))
@@ -65,7 +65,7 @@ class UsersTable
                             ->options(fn (): array => Role::query()->orderBy('name')->pluck('name', 'name')->all())
                             ->required(),
                     ])
-                    ->action(function (User $record, array $data): void {
+                    ->sensitiveAction(function (User $record, array $data): void {
                         try {
                             app(UserAdministrationService::class)->assignRoles(auth()->user(), $record, $data['roles'] ?? []);
                         } catch (ValidationException $exception) {
@@ -80,7 +80,7 @@ class UsersTable
 
                         Notification::make()->success()->title('Roles updated')->send();
                     }),
-                Action::make('deactivate')
+                SensitiveAction::make('deactivate')
                     ->label('Deactivate')
                     ->icon('heroicon-o-no-symbol')
                     ->color('danger')
@@ -88,7 +88,7 @@ class UsersTable
                     ->visible(fn (User $record): bool => $record->status === User::STATUS_ACTIVE
                         && ! auth()->user()->is($record)
                         && auth()->user()?->can('users.deactivate'))
-                    ->action(function (User $record): void {
+                    ->sensitiveAction(function (User $record): void {
                         try {
                             app(UserAdministrationService::class)->deactivate(auth()->user(), $record);
                         } catch (ValidationException $exception) {
@@ -103,29 +103,29 @@ class UsersTable
 
                         Notification::make()->success()->title('User deactivated')->send();
                     }),
-                Action::make('reactivate')
+                SensitiveAction::make('reactivate')
                     ->label('Reactivate')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
                     ->visible(fn (User $record): bool => $record->status === User::STATUS_INACTIVE
                         && auth()->user()?->can('users.activate'))
-                    ->action(function (User $record): void {
+                    ->sensitiveAction(function (User $record): void {
                         app(UserAdministrationService::class)->reactivate(auth()->user(), $record);
 
                         Notification::make()->success()->title('User reactivated')->send();
                     }),
-                Action::make('revokeSessions')
+                SensitiveAction::make('revokeSessions')
                     ->label('Revoke sessions')
                     ->icon('heroicon-o-arrow-path-rounded-square')
                     ->requiresConfirmation()
                     ->visible(fn (): bool => auth()->user()?->can('users.revoke_sessions'))
-                    ->action(function (User $record): void {
+                    ->sensitiveAction(function (User $record): void {
                         $revoked = app(UserAdministrationService::class)->revokeSessions(auth()->user(), $record);
 
                         Notification::make()->success()->title("Revoked {$revoked} session(s)")->send();
                     }),
-                Action::make('resetMfa')
+                SensitiveAction::make('resetMfa')
                     ->label('Reset MFA')
                     ->icon('heroicon-o-shield-exclamation')
                     ->color('danger')
@@ -134,7 +134,7 @@ class UsersTable
                     ->visible(fn (User $record): bool => ! auth()->user()->is($record)
                         && auth()->user()?->can('users.reset_mfa')
                         && app(MfaService::class)->isEnrolled($record))
-                    ->action(function (User $record): void {
+                    ->sensitiveAction(function (User $record): void {
                         try {
                             app(UserAdministrationService::class)->resetMfa(auth()->user(), $record);
                         } catch (ValidationException $exception) {

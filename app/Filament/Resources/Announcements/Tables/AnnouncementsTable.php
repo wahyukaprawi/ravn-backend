@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Announcements\Tables;
 
+use App\Filament\Actions\SensitiveAction;
 use App\Models\Announcement;
 use App\Services\AnnouncementService;
-use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
@@ -49,13 +49,13 @@ class AnnouncementsTable
                 ViewAction::make(),
                 EditAction::make()
                     ->visible(fn (Announcement $record): bool => in_array($record->status, [Announcement::STATUS_DRAFT, Announcement::STATUS_SCHEDULED], true)),
-                Action::make('publish')
+                SensitiveAction::make('publish')
                     ->label('Publish')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('success')
                     ->requiresConfirmation()
                     ->visible(fn (Announcement $record): bool => in_array($record->status, [Announcement::STATUS_DRAFT, Announcement::STATUS_SCHEDULED], true) && auth()->user()?->can('announcements.publish'))
-                    ->action(function (Announcement $record): void {
+                    ->sensitiveAction(function (Announcement $record): void {
                         try {
                             app(AnnouncementService::class)->publish($record, auth()->user());
                         } catch (ValidationException $exception) {
@@ -70,13 +70,13 @@ class AnnouncementsTable
 
                         Notification::make()->success()->title('Announcement published')->send();
                     }),
-                Action::make('archive')
+                SensitiveAction::make('archive')
                     ->label('Archive')
                     ->icon('heroicon-o-archive-box')
                     ->color('warning')
                     ->requiresConfirmation()
                     ->visible(fn (Announcement $record): bool => $record->status === Announcement::STATUS_PUBLISHED && auth()->user()?->can('announcements.archive'))
-                    ->action(function (Announcement $record): void {
+                    ->sensitiveAction(function (Announcement $record): void {
                         try {
                             app(AnnouncementService::class)->archive($record, auth()->user());
                         } catch (ValidationException $exception) {

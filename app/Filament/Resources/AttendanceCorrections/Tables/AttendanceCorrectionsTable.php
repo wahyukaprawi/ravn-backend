@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\AttendanceCorrections\Tables;
 
+use App\Filament\Actions\SensitiveAction;
 use App\Models\AttendanceCorrection;
 use App\Services\AttendanceCorrectionService;
-use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -49,13 +49,13 @@ class AttendanceCorrectionsTable
             ])
             ->recordActions([
                 ViewAction::make(),
-                Action::make('approve')
+                SensitiveAction::make('approve')
                     ->label('Approve')
                     ->icon('heroicon-o-check')
                     ->color('success')
                     ->requiresConfirmation()
                     ->visible(fn (AttendanceCorrection $record): bool => $record->status === AttendanceCorrection::STATUS_SUBMITTED && auth()->user()?->can('attendance.corrections.approve'))
-                    ->action(function (AttendanceCorrection $record): void {
+                    ->sensitiveAction(function (AttendanceCorrection $record): void {
                         try {
                             app(AttendanceCorrectionService::class)->approve($record, auth()->user());
                         } catch (ValidationException $exception) {
@@ -70,7 +70,7 @@ class AttendanceCorrectionsTable
 
                         Notification::make()->success()->title('Correction approved')->send();
                     }),
-                Action::make('reject')
+                SensitiveAction::make('reject')
                     ->label('Reject')
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
@@ -78,7 +78,7 @@ class AttendanceCorrectionsTable
                     ->schema([
                         Textarea::make('reason')->required()->maxLength(500),
                     ])
-                    ->action(function (AttendanceCorrection $record, array $data): void {
+                    ->sensitiveAction(function (AttendanceCorrection $record, array $data): void {
                         try {
                             app(AttendanceCorrectionService::class)->reject($record, auth()->user(), (string) $data['reason']);
                         } catch (ValidationException $exception) {

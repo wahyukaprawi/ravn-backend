@@ -31,3 +31,10 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 .env.testing
+
+# Local push credentials and compose overrides must never be committed.
+*.p8
+*firebase-adminsdk*.json
+*service-account*.json
+/secrets/
+compose.override.yaml

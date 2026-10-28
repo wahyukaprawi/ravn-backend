@@ -95,7 +95,7 @@ class RbacSeeder extends Seeder
         'notifications.retry',
     ];
 
-    public const PROPOSED_PERMISSIONS = [
+    public const SUPER_ADMIN_PERMISSIONS = [
         'users.reset_mfa',
     ];
 
@@ -120,16 +120,18 @@ class RbacSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        foreach (array_merge(self::APPROVED_PERMISSIONS, self::OPERATIONAL_PERMISSIONS, self::PROPOSED_PERMISSIONS) as $name) {
+        foreach (array_merge(self::APPROVED_PERMISSIONS, self::OPERATIONAL_PERMISSIONS, self::SUPER_ADMIN_PERMISSIONS) as $name) {
             Permission::findOrCreate($name, 'web');
         }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         foreach (self::ROLES as $name) {
             Role::findOrCreate($name, 'web');
         }
 
         $superAdmin = Role::findByName('super_admin', 'web');
-        $superAdmin->syncPermissions(array_merge(self::APPROVED_PERMISSIONS, self::PROPOSED_PERMISSIONS));
+        $superAdmin->syncPermissions(array_merge(self::APPROVED_PERMISSIONS, self::SUPER_ADMIN_PERMISSIONS));
 
         $hrAdmin = Role::findByName('hr_admin', 'web');
         $hrAdmin->syncPermissions([
@@ -245,7 +247,7 @@ class RbacSeeder extends Seeder
 
         $this->command?->info(sprintf(
             'RBAC seeded: %d permissions, %d roles. super_admin holds %d.',
-            count(self::APPROVED_PERMISSIONS) + count(self::OPERATIONAL_PERMISSIONS),
+            count(self::APPROVED_PERMISSIONS) + count(self::OPERATIONAL_PERMISSIONS) + count(self::SUPER_ADMIN_PERMISSIONS),
             count(self::ROLES),
             $superAdmin->permissions()->count(),
         ));

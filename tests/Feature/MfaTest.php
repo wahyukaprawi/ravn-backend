@@ -69,13 +69,15 @@ class MfaTest extends TestCase
         $user = User::factory()->hrAdmin()->create();
 
         $secret = $this->actingAs($user)->postJson('/api/v1/auth/mfa/enroll')->json('secret');
-        $this->actingAs($user)->postJson('/api/v1/auth/mfa/confirm', ['code' => $this->codeFor($secret)])->assertOk();
+        $counter = $this->counterNow();
+        $code = $this->codeAtCounter($secret, $counter);
+        $this->actingAs($user)->postJson('/api/v1/auth/mfa/confirm', ['code' => $code])->assertOk();
 
-        $replayed = $this->codeFor($secret);
+        $replayed = $this->codeAtCounter($secret, $counter);
 
         $this->actingAs($user)->postJson('/api/v1/auth/mfa/verify', ['code' => $replayed])->assertStatus(422);
 
-        $next = $this->codeAtCounter($secret, $this->counterNow() + 1);
+        $next = $this->codeAtCounter($secret, $counter + 1);
         $this->actingAs($user)->postJson('/api/v1/auth/mfa/verify', ['code' => $next])->assertOk();
     }
 

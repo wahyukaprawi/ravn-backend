@@ -26,13 +26,13 @@ class LeaveBalancesTable
                 TextColumn::make('user.email')->label('Email')->searchable()->toggleable(),
                 TextColumn::make('type.name')->label('Leave type')->sortable(),
                 TextColumn::make('year')->sortable(),
-                TextColumn::make('entitled')->numeric(decimalPlaces: 2)->sortable(),
-                TextColumn::make('used')->numeric(decimalPlaces: 2)->sortable(),
-                TextColumn::make('reserved')->numeric(decimalPlaces: 2)->sortable(),
-                TextColumn::make('adjusted')->numeric(decimalPlaces: 2)->sortable(),
+                TextColumn::make('entitled')->numeric(decimalPlaces: 0)->sortable(),
+                TextColumn::make('used')->numeric(decimalPlaces: 0)->sortable(),
+                TextColumn::make('reserved')->numeric(decimalPlaces: 0)->sortable(),
+                TextColumn::make('adjusted')->numeric(decimalPlaces: 0)->sortable(),
                 TextColumn::make('available')
                     ->label('Available')
-                    ->state(fn (LeaveBalance $record): string => number_format($record->available(), 2))
+                    ->state(fn (LeaveBalance $record): string => number_format($record->available(), 0))
                     ->badge()
                     ->color(fn (LeaveBalance $record): string => $record->available() > 0 ? 'success' : 'danger'),
             ])

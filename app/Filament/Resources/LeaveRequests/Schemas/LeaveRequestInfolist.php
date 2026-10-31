@@ -21,7 +21,7 @@ class LeaveRequestInfolist
                         TextEntry::make('status')->badge(),
                         TextEntry::make('start_date')->date(),
                         TextEntry::make('end_date')->date(),
-                        TextEntry::make('days')->numeric(decimalPlaces: 1),
+                        TextEntry::make('days')->numeric(decimalPlaces: 0),
                         TextEntry::make('manager.name')->label('Manager')->placeholder('—'),
                         TextEntry::make('submitted_at')->dateTime(),
                         TextEntry::make('reason')->placeholder('No reason provided')->columnSpanFull(),

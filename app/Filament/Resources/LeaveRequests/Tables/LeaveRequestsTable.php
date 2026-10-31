@@ -27,7 +27,7 @@ class LeaveRequestsTable
                 TextColumn::make('type.name')->label('Leave type')->sortable(),
                 TextColumn::make('start_date')->date()->sortable(),
                 TextColumn::make('end_date')->date()->sortable(),
-                TextColumn::make('days')->numeric(decimalPlaces: 1)->sortable(),
+                TextColumn::make('days')->numeric(decimalPlaces: 0)->sortable(),
                 TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
